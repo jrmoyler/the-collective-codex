@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "atlas": "card-art-atlas.webp",
+  "grid": {"columns": 21, "rows": 54, "columnMapping": "division IDs 1-21", "rowMapping": "sheet order in card-canon.js"},
+  "policy": {
+    "direct-refined": "Approved source sheet was locally available and its card artwork was cropped and refined into the atlas.",
+    "derived-refined": "The historical source sheet was not locally available; the atlas row was deterministically refined from approved same-family or semantically related source artwork."
+  },
+  "sources": {
+    "Specimen": {"directSets": 1, "files": ["image(20260805-235840).png", "collective_ai_specimen_select.png"]},
+    "Weapon": {"directSets": 6, "files": ["9591bc0e-25c7-4e39-a446-c334edd42950.png", "ai_arsenal_select_futuristic_weapon_grid.png", "collective_ai_arsenal_select.png", "f8871453-79a7-4c3b-bd96-8441ce0857fe.png", "futuristic_arsenal_selection_grid.png", "image(20260805-235913).png"], "remainingSets": "derived-refined"},
+    "Monster": {"directSets": 1, "files": ["collective_ai_monster_select_grid.png"]},
+    "Knight": {"directSets": 1, "files": ["collective_ai_knight_select_grid.png"]},
+    "Warrior": {"directSets": 1, "files": ["collective_ai_warrior_select_grid.png"]},
+    "Magician": {"directSets": 1, "files": ["collective_ai_magician_selection_grid.png"]},
+    "Environment": {"directSets": 1, "files": ["collective_ai_environment_select.png"], "remainingSets": "derived-refined"},
+    "Disaster": {"directSets": 0, "derivedFrom": ["collective_ai_environment_select.png", "collective_ai_plague_selection_dashboard.png"]},
+    "Defense": {"directSets": 0, "derivedFrom": ["collective_ai_base_select_grid.png", "collective_ai_arsenal_select.png"]},
+    "Base": {"directSets": 1, "files": ["collective_ai_base_select_grid.png"]},
+    "Item": {"directSets": 4, "files": ["futuristic_sci_fi_item_selection_hud.png", "cyberpunk_curio_item_selection_hud.png", "collective_ai_item_select_interface.png", "collective_ai_sci_fi_item_select_interface.png"], "remainingSets": "derived-refined"},
+    "Operative": {"directSets": 3, "files": ["collective_ai_character_select_roster.png", "cyberpunk_collective_ai_character_roster.png", "image(20260805-235858).png"], "remainingSets": "derived-refined"},
+    "Action": {"directSets": 1, "files": ["collective_ai_action_select_interface.png"]},
+    "Trap": {"directSets": 1, "files": ["collective_ai_trap_selection_hud.png"]},
+    "Reaction": {"directSets": 0, "derivedFrom": ["collective_ai_response_selection_hud.png"]},
+    "Response": {"directSets": 1, "files": ["collective_ai_response_selection_hud.png"]},
+    "Law": {"directSets": 1, "files": ["collective_ai_law_select_hud.png"]},
+    "Spell": {"directSets": 1, "files": ["collective_ai_spell_select_interface.png"]},
+    "Hex": {"directSets": 0, "derivedFrom": ["collective_ai_spell_select_interface.png", "collective_ai_plague_selection_dashboard.png"]},
+    "Plague": {"directSets": 1, "files": ["collective_ai_plague_selection_dashboard.png"]},
+    "Virus": {"directSets": 1, "files": ["collective_ai_virus_selection_grid.png"]},
+    "Dragon": {"directSets": 0, "derivedFrom": ["imagegen.png", "collective_ai_deity_select_grid.png"]},
+    "Deity": {"directSets": 1, "files": ["collective_ai_deity_select_grid.png"]},
+    "Android": {"directSets": 1, "files": ["collective_ai_android_selection_roster.png"]},
+    "God": {"directSets": 1, "files": ["collective_ai_god_select_gallery.png"]},
+    "Ruler": {"directSets": 1, "files": ["collective_ai_ruler_select_interface.png"]},
+    "Ritual": {"directSets": 1, "files": ["collective_ai_ritual_select_grid.png"]},
+    "World": {"directSets": 1, "files": ["galactic_world_select_interface.png"]}
+  }
+}
