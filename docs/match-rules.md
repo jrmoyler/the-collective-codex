@@ -21,14 +21,15 @@ A round consists of the player's main phase and combat, followed by the rival's 
 At the start of each side's turn, its normal resources refill according to that side's turn number `t`:
 
 ```text
-Command = min(10, 5 + floor((t - 1) / 2))
-Insight = min(10, 5 + floor((t - 1) / 3))
-Essence = min(10, 4 + floor((t - 1) / 4))
+Base = min(8, t + 1)
+Command = Base
+Insight = Base
+Essence = Base
 ```
 
-Turn 1 therefore begins at **5 Command / 5 Insight / 4 Essence**. The curve is deliberately broad enough for the generated three-resource costs while still creating progression. All three resources cap at 10 before card effects. A functioning Base may generate one additional dominant-cost resource on refresh, also capped at 10.
+Turn 1 therefore begins at **2 Command / 2 Insight / 2 Essence**. Each normal resource rises by 1 on that side's next turn until the normal refill caps at 8. This paced opening keeps the 20-Core game from becoming a five-card opening-hand dump while still making the generated three-resource costs progressively available. A functioning Base may generate one additional dominant-cost resource on refresh, up to the engine's hard resource ceiling of 10.
 
-Cards are played only during the active side's main phase unless their existing family rule is represented as a persistent reaction/trap. Playing a card pays its existing `cost.command`, `cost.insight`, and `cost.essence` exactly, subject only to canonical modifiers such as Environment.
+Cards are played only during the active side's main phase unless their existing family rule is represented as a set reaction/trap. In this local minimum loop, Reaction/Response timing is armed during the controller's main phase because the automated rival turn has no interactive stack pause; their canonical timing remains visible on the card and the deterministic simplification is documented here. Playing a card pays its existing `cost.command`, `cost.insight`, and `cost.essence` exactly, subject only to canonical modifiers such as Environment.
 
 ## Combat
 
@@ -63,8 +64,8 @@ The engine reads the existing card fields (`cost`, `power`, `rulesText`, `keywor
 | Operative | Records the named division keyword trigger. If the keyword has no canonical numeric definition, no additional statistic is fabricated. |
 | Action | Gives the strongest friendly unit in the chosen lane +2 power until end of turn. The reposition clause uses the same legal lane-shift model when applicable. |
 | Trap | Installed face down. The next enemy entity entering that lane is exhausted and has its on-deploy trigger suppressed; the Trap is consumed. Rival Trap identity remains hidden in the UI until used. |
-| Reaction | A persistent local Reaction reduces the next numeric effect damage by 1 and grants 1 Insight, then is consumed. This is used for effect-tagged damage such as Monster deployment damage, not normal combat. |
-| Response | May remain set as a persistent support. Canonical division keywords without numeric definitions are not copied into invented effects. |
+| Reaction | A set local Reaction reduces the next numeric effect damage by 1 and grants 1 Insight, then is consumed. This is used for effect-tagged damage such as Monster deployment damage, not normal combat. |
+| Response | May remain set as a support. Canonical division keywords without numeric definitions are not copied into invented effects. |
 | Law | Remains a visible persistent global rule card. The engine does not synthesize new repeated-ability names beyond the canon's existing trigger bookkeeping. |
 | Spell | Resolves its two canonical keyword applications. When that division keyword has no numeric definition in the canon, the application is logged without fabricating a number. |
 | Hex | Attaches to an opposing unit reference for the existing activated-ability surcharge rule. The current local UI exposes no generic activated-ability button, so no unrelated cost is invented. |
