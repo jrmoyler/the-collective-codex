@@ -51,7 +51,7 @@ The engine reads the existing card fields (`cost`, `power`, `rulesText`, `keywor
 | Family / keyword | Local deterministic interpretation |
 | --- | --- |
 | Specimen | When deployed into a lane containing an enemy unit, gains +1 power until end of turn. |
-| Weapon | Attaches to the strongest friendly unit in the chosen lane. That unit's first attack each turn gains +2 power. The draw/discard clause is only relevant when that equipped unit moved; movement bookkeeping is preserved. |
+| Weapon | Attaches to the strongest friendly unit in the chosen lane. That unit's first attack each turn gains +2 power. If the equipped unit moved before that first attack, the trigger draws 1 card and then deterministically discards the highest-total-cost card in hand; cost ties resolve by card ID. |
 | Monster | On deployment, if its power exceeds every enemy unit already in that lane, deals 1 Core damage. |
 | Knight / Guard | Guard combat rule described above. |
 | Warrior | After surviving its attack, may shift once to an adjacent lane. The local engine performs the shift only when it improves lane balance and a legal slot exists. Moving clears Plague infection as written. |
