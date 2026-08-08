@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "encoding": "base64",
+  "output": "assets/card-art-atlas.avif",
+  "sourceVariant": "hard-embedded-80px-art-atlas-avif-q12",
+  "width": 1680,
+  "height": 4320,
+  "tileWidth": 80,
+  "tileHeight": 80,
+  "binaryBytes": 206136,
+  "sha256": "16b869ecc71eeaadfd518cdee08fd71486890fb2862a548ca728fcd983ca5a31",
+  "chunks": [
+    "assets/card-art-atlas.base64/chunk-000.txt",
+    "assets/card-art-atlas.base64/chunk-001.txt",
+    "assets/card-art-atlas.base64/chunk-002.txt",
+    "assets/card-art-atlas.base64/chunk-003.txt"
+  ]
+}

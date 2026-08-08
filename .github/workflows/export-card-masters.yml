@@ -1,0 +1,24 @@
+name: Export 1,134 card masters
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'card-canon.js'
+      - 'assets/card-art-atlas.base64/**'
+      - 'scripts/export-card-masters.mjs'
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run export:cards
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collective-codex-1134-card-masters
+          path: exports/cards/*.png
+          retention-days: 30

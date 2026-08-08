@@ -1,11 +1,13 @@
 {
-  "name": "the-collective-codex",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "test": "node --test tests/*.test.mjs",
-    "check": "npm run test && npm run build"
-  }
+  "name":"the-collective-codex",
+  "private":true,
+  "version":"1.0.0",
+  "type":"module",
+  "scripts":{
+    "build":"node scripts/build.mjs",
+    "test":"node --test tests/*.test.mjs",
+    "check":"npm run test && npm run build",
+    "export:cards":"node scripts/export-card-masters.mjs"
+  },
+  "devDependencies":{"sharp":"^0.34.3"}
 }
