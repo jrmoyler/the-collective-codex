@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DECK_SIZE, STARTING_CORE, MAX_UNITS_PER_LANE,
   resourceCurve, createMatch, mulligan, playCard, resolveCombat,
-  completePlayerTurn, effectiveCost
+  completePlayerTurn, effectiveCost, getPlayability
 } from '../match-engine.js';
 
 const zero={command:0,insight:0,essence:0};
@@ -63,6 +63,35 @@ test('playing a unit spends exact resources, removes it from hand and respects t
   assert.equal(state.players.player.lanes[0].units.length,3);
   assert.throws(()=>playCard(state,'player',0,0),/lane.*full/i);
   assert.equal(MAX_UNITS_PER_LANE,3);
+});
+
+test('targeted supports require legal friendly or opposing units before they can be played',()=>{
+  const weapon=makeCard('WEAPON',{family:'Weapon',cost:zero,power:0});
+  const hex=makeCard('HEX',{family:'Hex',cost:zero,power:0,targeting:'Opposing Lane'});
+  let state=mainState();
+  state.players.player.hand=[weapon,hex];
+  state.players.player.resources={command:10,insight:10,essence:10};
+  assert.equal(getPlayability(state,'player',0,0).ok,false);
+  assert.match(getPlayability(state,'player',0,0).reason,/friendly unit/i);
+  assert.equal(getPlayability(state,'player',1,0).ok,false);
+  assert.match(getPlayability(state,'player',1,0).reason,/opposing unit/i);
+});
+
+test('Action repositions its buffed unit only when an adjacent lane is meaningfully less occupied',()=>{
+  const u1=makeCard('U1',{family:'Warrior',cost:zero,power:3});
+  const u2=makeCard('U2',{family:'Knight',cost:zero,power:5,keywords:['Guard']});
+  const action=makeCard('ACT',{family:'Action',cost:zero,power:0});
+  let state=mainState([u1,u2,action,...filler('P').slice(3)]);
+  state.players.player.resources={command:10,insight:10,essence:10};
+  state=playCard(state,'player',0,0);
+  state=playCard(state,'player',0,0);
+  state=playCard(state,'player',0,0);
+  assert.equal(state.players.player.lanes[0].units.length,1);
+  assert.equal(state.players.player.lanes[1].units.length,1);
+  const moved=state.players.player.lanes[1].units[0];
+  assert.equal(moved.card.id,'U2');
+  assert.equal(moved.power,7);
+  assert.equal(moved.moved,true);
 });
 
 test('monster on-deploy deals one Core damage when it exceeds every enemy in the lane',()=>{
