@@ -25,7 +25,7 @@ function shuffled(cards,seed){const out=[...cards],random=rng(seed);for(let i=ou
 function laneState(){return {units:[],supports:[]};}
 function participant(deck){return {core:STARTING_CORE,deck,hand:[],discard:[],resources:{command:0,insight:0,essence:0},lanes:[laneState(),laneState(),laneState()],mulliganUsed:false,turnNumber:0,lanePlays:[0,0,0],corePreventionUsed:[0,0,0]};}
 function addLog(state,message){state.log.unshift(message);state.log=state.log.slice(0,60);}
-function draw(state,side,count=1){const p=state.players[side];for(let i=0;i<count;i++){const card=p.deck.shift();if(card)p.hand.push(card);}}
+function draw(state,side,count=1){const p=state.players[side];for(let i=0;i<count;i++){const card=p.deck.shift();if(card)p.hand.push(card);} }
 function unitFor(state,card){state.uidCounter+=1;return {uid:`u${state.uidCounter}`,card,power:card.power,basePower:card.power,tempPower:0,exhausted:false,moved:false,triggerSuppressed:false,weaponBonus:0,weaponUsed:false,infected:false};}
 function supportFor(state,card){state.uidCounter+=1;return {uid:`s${state.uidCounter}`,card,disabled:false,disabledUntilRound:0,counters:0,faceDown:card.family==='Trap'};}
 function strongest(units){return [...units].filter(alive).sort((a,b)=>b.power-a.power||a.uid.localeCompare(b.uid))[0]||null;}
@@ -80,9 +80,9 @@ function refreshMutable(state,side,{drawCard=true}={}){
   for(let laneIndex=0;laneIndex<3;laneIndex++){
     const lane=p.lanes[laneIndex],bases=lane.supports.filter(s=>s.card.family==='Base'&&!isDisabled(state,s));
     for(const base of bases){
-      const laneCards=[...lane.units.map(u=>u.card),...lane.supports.filter(s=>s!==base).map(s=>s.card)];
-      const sums={command:0,insight:0,essence:0};for(const c of laneCards)for(const k of Object.keys(sums))sums[k]+=c.cost?.[k]||0;
-      const order=['command','insight','essence'];const dominant=Object.keys(sums).sort((a,b)=>sums[b]-sums[a]||order.indexOf(a)-order.indexOf(b))[0];
+      const cards=[...lane.units.map(u=>u.card),...lane.supports.filter(s=>s!==base).map(s=>s.card)];
+      const sums={command:0,insight:0,essence:0};for(const c of cards)for(const k of Object.keys(sums))sums[k]+=c.cost?.[k]||0;
+      const dominant=Object.keys(sums).sort((a,b)=>sums[b]-sums[a]||['command','insight','essence'].indexOf(a)-['command','insight','essence'].indexOf(b))[0];
       p.resources[dominant]=Math.min(10,p.resources[dominant]+1);
       addLog(state,`${side==='player'?'Your':'Rival'} Base generated 1 ${dominant}.`);
     }
@@ -103,7 +103,8 @@ export function effectiveCost(state,side,card,laneIndex){
   const cost={command:card.cost.command,insight:card.cost.insight,essence:card.cost.essence};
   const envActive=['player','rival'].some(owner=>state.players[owner].lanes[laneIndex]?.supports.some(s=>s.card.family==='Environment'&&!isDisabled(state,s)));
   if(envActive&&state.players[side].lanePlays[laneIndex]===0){
-    const order=['command','insight','essence'];const keys=order.filter(k=>cost[k]>0).sort((a,b)=>cost[b]-cost[a]||order.indexOf(a)-order.indexOf(b));if(keys[0])cost[keys[0]]-=1;
+    const keys=['command','insight','essence'].filter(k=>cost[k]>0).sort((a,b)=>cost[b]-cost[a]||['command','insight','essence'].indexOf(a)-['command','insight','essence'].indexOf(b));
+    if(keys[0])cost[keys[0]]-=1;
   }
   return cost;
 }
@@ -116,7 +117,8 @@ export function getPlayability(state,side,handIndex,laneIndex){
   const lane=p.lanes[laneIndex];
   if(ENTITY_FAMILIES.has(card.family)&&lane.units.length>=MAX_UNITS_PER_LANE)return {ok:false,reason:'That lane is full.'};
   if(SUPPORT_FAMILIES.has(card.family)&&lane.supports.length>=MAX_SUPPORTS_PER_LANE)return {ok:false,reason:'That lane has no support slots.'};
-  if(['Item','Action'].includes(card.family)&&lane.units.length===0)return {ok:false,reason:'That card needs a friendly unit in the lane.'};
+  if(['Item','Action','Weapon'].includes(card.family)&&lane.units.length===0)return {ok:false,reason:'That card needs a friendly unit in the lane.'};
+  if(card.family==='Hex'&&state.players[other(side)].lanes[laneIndex].units.length===0)return {ok:false,reason:'Hex needs an opposing unit in the lane.'};
   const cost=effectiveCost(state,side,card,laneIndex);
   for(const k of ['command','insight','essence'])if(p.resources[k]<cost[k])return {ok:false,reason:`Not enough ${k}.`,cost};
   return {ok:true,cost};
@@ -136,9 +138,19 @@ function triggerDeployMutable(state,side,laneIndex,unit){
   }
   if(card.family==='Operative')addLog(state,`${card.name} triggered ${card.keywords?.[0]||'its primary division keyword'}; undefined keyword numerics remain informational.`);
 }
+function maybeRepositionMutable(state,side,laneIndex,unit){
+  const p=state.players[side],options=[laneIndex-1,laneIndex+1].filter(i=>i>=0&&i<3&&p.lanes[i].units.length<MAX_UNITS_PER_LANE);
+  if(!options.length)return laneIndex;
+  const targetLane=options.sort((a,b)=>p.lanes[a].units.length-p.lanes[b].units.length||a-b)[0];
+  if(p.lanes[targetLane].units.length+1>=p.lanes[laneIndex].units.length)return laneIndex;
+  p.lanes[laneIndex].units=p.lanes[laneIndex].units.filter(u=>u.uid!==unit.uid);
+  unit.moved=true;unit.infected=false;p.lanes[targetLane].units.push(unit);
+  addLog(state,`${unit.card.name} repositioned from ${LANE_NAMES[laneIndex]} to ${LANE_NAMES[targetLane]}.`);
+  return targetLane;
+}
 function resolveImmediateMutable(state,side,laneIndex,card){
   const p=state.players[side],enemy=state.players[other(side)],lane=p.lanes[laneIndex];
-  if(card.family==='Action'){const target=strongest(lane.units);if(target){target.power+=2;target.tempPower+=2;addLog(state,`${card.name} granted ${target.card.name} +2 power this turn.`);}}
+  if(card.family==='Action'){const target=strongest(lane.units);if(target){target.power+=2;target.tempPower+=2;addLog(state,`${card.name} granted ${target.card.name} +2 power this turn.`);maybeRepositionMutable(state,side,laneIndex,target);}}
   else if(card.family==='Item'){const target=strongest(lane.units);if(target){target.power+=1;target.tempPower+=1;addLog(state,`${card.name} granted ${target.card.name} +1 power this turn.`);}}
   else if(card.family==='Disaster'){
     for(let i=0;i<3;i++){const target=strongest(enemy.lanes[i].units);if(target){target.power-=1;if(target.power>0)target.exhausted=true;pruneDead(state,other(side),i);}}addLog(state,`${card.name} dealt the minimum deterministic 1 damage to each lane’s highest-power enemy and exhausted survivors.`);
@@ -167,6 +179,18 @@ export function playCard(state,side,handIndex,laneIndex){
 }
 
 function combatValue(unit,attacking){return Math.max(0,unit.power+(attacking&&!unit.weaponUsed?unit.weaponBonus:0));}
+function finishAttackMutable(state,side,unit){
+  const weaponTriggered=unit.weaponBonus>0&&!unit.weaponUsed&&unit.moved;
+  unit.weaponUsed=true;
+  if(!weaponTriggered)return;
+  const p=state.players[side];draw(state,side,1);
+  if(p.hand.length){
+    let discardIndex=0;
+    for(let i=1;i<p.hand.length;i++)if(totalCost(p.hand[i])>totalCost(p.hand[discardIndex])||(totalCost(p.hand[i])===totalCost(p.hand[discardIndex])&&p.hand[i].id.localeCompare(p.hand[discardIndex].id)>0))discardIndex=i;
+    const [discarded]=p.hand.splice(discardIndex,1);p.discard.push(discarded);
+    addLog(state,`${unit.card.name}'s Weapon trigger drew 1 card, then discarded ${discarded.name}.`);
+  }
+}
 function expireTempsMutable(state,side){for(let i=0;i<3;i++){for(const unit of state.players[side].lanes[i].units){if(unit.tempPower){unit.power-=unit.tempPower;unit.tempPower=0;}}pruneDead(state,side,i);}}
 function plagueStepMutable(state){for(const side of ['player','rival'])for(let i=0;i<3;i++){for(const unit of state.players[side].lanes[i].units){if(unit.infected){if(unit.moved)unit.infected=false;else unit.power-=1;}}pruneDead(state,side,i);}}
 function ritualStepMutable(state){for(const side of ['player','rival'])for(const lane of state.players[side].lanes)for(const support of lane.supports.filter(s=>s.card.family==='Ritual'&&!s.ready)){support.counters=Math.min(3,(support.counters||0)+1);if(support.counters===3){support.ready=true;addLog(state,`${support.card.name} reached Channel 3; its undefined division-wide resolution is held without inventing new card text.`);}}}
@@ -180,10 +204,10 @@ export function resolveCombat(state,attackerSide){
     const flyers=eligible.filter(u=>hasKeyword(u,'Flying'));
     const hasAirBlocker=dLane.units.some(u=>hasKeyword(u,'Flying')||hasKeyword(u,'Guard'));
     let fighters=eligible;
-    if(flyers.length&&!hasAirBlocker){const airDamage=flyers.reduce((sum,u)=>sum+combatValue(u,true),0);for(const u of flyers)u.weaponUsed=true;dealCoreDamageMutable(next,defenderSide,airDamage,laneIndex);fighters=eligible.filter(u=>!flyers.some(f=>f.uid===u.uid));if(next.phase==='ended')break;}
+    if(flyers.length&&!hasAirBlocker){const airDamage=flyers.reduce((sum,u)=>sum+combatValue(u,true),0);for(const u of flyers)finishAttackMutable(next,attackerSide,u);dealCoreDamageMutable(next,defenderSide,airDamage,laneIndex);fighters=eligible.filter(u=>!flyers.some(f=>f.uid===u.uid));if(next.phase==='ended')break;}
     if(!fighters.length)continue;
     const defenders=dLane.units.filter(alive);
-    if(defenders.length===0){const damage=fighters.reduce((sum,u)=>sum+combatValue(u,true),0);for(const u of fighters)u.weaponUsed=true;dealCoreDamageMutable(next,defenderSide,damage,laneIndex);continue;}
+    if(defenders.length===0){const damage=fighters.reduce((sum,u)=>sum+combatValue(u,true),0);for(const u of fighters)finishAttackMutable(next,attackerSide,u);dealCoreDamageMutable(next,defenderSide,damage,laneIndex);continue;}
     const orderedA=[...fighters].sort((a,b)=>combatValue(b,true)-combatValue(a,true));
     const orderedD=[...defenders].sort((a,b)=>(hasKeyword(b,'Guard')?1:0)-(hasKeyword(a,'Guard')?1:0)||b.power-a.power);
     const dGuard=orderedD.some(u=>hasKeyword(u,'Guard')),aGuard=orderedA.some(u=>hasKeyword(u,'Guard'));let dGuardUsed=false,aGuardUsed=false;
@@ -191,7 +215,7 @@ export function resolveCombat(state,attackerSide){
     for(let i=0;i<paired;i++){
       const a=orderedA[i],d=orderedD[i],aDamage=combatValue(a,true),dDamage=combatValue(d,false);
       let dealtToD=aDamage,dealtToA=dDamage;if(dGuard&&!dGuardUsed&&dealtToD>0){dealtToD=Math.max(0,dealtToD-1);dGuardUsed=true;}if(aGuard&&!aGuardUsed&&dealtToA>0){dealtToA=Math.max(0,dealtToA-1);aGuardUsed=true;}
-      d.power-=dealtToD;a.power-=dealtToA;a.weaponUsed=true;
+      d.power-=dealtToD;a.power-=dealtToA;finishAttackMutable(next,attackerSide,a);
     }
     pruneDead(next,attackerSide,laneIndex);pruneDead(next,defenderSide,laneIndex);
     if(defender.lanes[laneIndex].units.length===0){const survivors=attacker.lanes[laneIndex].units.filter(u=>fighters.some(f=>f.uid===u.uid)&&alive(u));if(survivors.length)dealCoreDamageMutable(next,defenderSide,survivors.length,laneIndex);}
@@ -202,7 +226,7 @@ export function resolveCombat(state,attackerSide){
 function aiLaneScore(state,card,laneIndex){const own=state.players.rival.lanes[laneIndex],enemy=state.players.player.lanes[laneIndex],ownPower=own.units.reduce((s,u)=>s+u.power,0),enemyPower=enemy.units.reduce((s,u)=>s+u.power,0);let score=0;if(ENTITY_FAMILIES.has(card.family)){score+=card.power*1.5-totalCost(card)*0.25;if(enemy.units.length===0)score+=5;else if(card.power+ownPower>enemyPower)score+=3;score-=own.units.length*1.5;}else if(card.family==='Defense')score+=own.supports.some(s=>s.card.family==='Defense')?0:3;else if(['Action','Item','Weapon'].includes(card.family))score+=own.units.length?4:-8;else if(card.family==='Trap')score+=enemy.units.length?3:1;else score+=1;return score;}
 function runAiMainMutable(state){let plays=0;while(plays<5&&state.phase==='main'&&state.active==='rival'){
   let best=null;for(let h=0;h<state.players.rival.hand.length;h++)for(let lane=0;lane<3;lane++){const check=getPlayability(state,'rival',h,lane);if(!check.ok)continue;const card=state.players.rival.hand[h],score=aiLaneScore(state,card,lane);if(!best||score>best.score)best={h,lane,score};}
-  if(!best)break;const played=playCard(state,'rival',best.h,best.lane);Object.assign(state,played);plays++;
+  if(!best)break;const next=playCard(state,'rival',best.h,best.lane);Object.assign(state,next);plays++;
 }}
 
 export function completePlayerTurn(state){
