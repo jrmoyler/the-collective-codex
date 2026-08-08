@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "atlas": "card-art-atlas.avif",
+  "atlas": "card-art-atlas.webp",
   "grid": {"columns": 21, "rows": 54, "columnMapping": "division IDs 1-21", "rowMapping": "sheet order in card-canon.js"},
   "policy": {
     "direct-refined": "Approved source sheet was locally available and its card artwork was cropped and refined into the atlas.",
