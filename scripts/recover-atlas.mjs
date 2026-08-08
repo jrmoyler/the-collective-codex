@@ -37,7 +37,7 @@ export async function buildRecoveryAtlas(){
   const mapped=cards.filter(card=>Number.isInteger(card.art?.row)&&Number.isInteger(card.art?.col)&&card.art.row>=0&&card.art.row<ROWS&&card.art.col>=0&&card.art.col<COLS);
   if(mapped.length!==COLS*ROWS)throw new Error(`Recovery atlas requires ${COLS*ROWS} mapped cards; found ${mapped.length}.`);
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}"><rect width="100%" height="100%" fill="${GROUND}"/>${mapped.map(tileSvg).join('')}</svg>`;
-  return sharp(Buffer.from(svg)).avif({quality:58,effort:6,chromaSubsampling:'4:4:4'}).toBuffer();
+  return sharp(Buffer.from(svg)).avif({quality:58,effort:2,chromaSubsampling:'4:4:4'}).toBuffer();
 }
 
 export const recoveryAtlasSpec={width:WIDTH,height:HEIGHT,columns:COLS,rows:ROWS,strategy:'deterministic-canon-fallback'};
