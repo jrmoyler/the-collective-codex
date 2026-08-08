@@ -16,11 +16,8 @@ const alive=unit=>unit.power>0;
 
 export function resourceCurve(turn){
   const t=Math.max(1,Number(turn)||1);
-  return {
-    command:Math.min(10,5+Math.floor((t-1)/2)),
-    insight:Math.min(10,5+Math.floor((t-1)/3)),
-    essence:Math.min(10,4+Math.floor((t-1)/4))
-  };
+  const base=Math.min(8,t+1);
+  return {command:base,insight:base,essence:base};
 }
 
 function rng(seed){let x=(seed>>>0)||1;return()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return((x>>>0)%1000000)/1000000};}
