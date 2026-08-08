@@ -1,14 +1,14 @@
 {
-  "version": 1,
+  "version": 3,
   "encoding": "base64",
-  "output": "assets/card-art-atlas.webp",
-  "sourceVariant": "embedded-runtime",
-  "width": 840,
-  "height": 1620,
-  "tileWidth": 40,
-  "tileHeight": 30,
-  "binaryBytes": 301580,
-  "sha256": "e61c1dfd19b88c74062610193b834fc721416df5ccabae8976ebdf2203ddaadd",
+  "output": "assets/card-art-atlas.avif",
+  "sourceVariant": "hard-embedded-80px-art-atlas-avif-q12",
+  "width": 1680,
+  "height": 4320,
+  "tileWidth": 80,
+  "tileHeight": 80,
+  "binaryBytes": 206136,
+  "sha256": "16b869ecc71eeaadfd518cdee08fd71486890fb2862a548ca728fcd983ca5a31",
   "chunks": [
     "assets/card-art-atlas.base64/chunk-000.txt",
     "assets/card-art-atlas.base64/chunk-001.txt",
@@ -23,13 +23,6 @@
     "assets/card-art-atlas.base64/chunk-010.txt",
     "assets/card-art-atlas.base64/chunk-011.txt",
     "assets/card-art-atlas.base64/chunk-012.txt",
-    "assets/card-art-atlas.base64/chunk-013.txt",
-    "assets/card-art-atlas.base64/chunk-014.txt",
-    "assets/card-art-atlas.base64/chunk-015.txt",
-    "assets/card-art-atlas.base64/chunk-016.txt",
-    "assets/card-art-atlas.base64/chunk-017.txt",
-    "assets/card-art-atlas.base64/chunk-018.txt",
-    "assets/card-art-atlas.base64/chunk-019.txt",
-    "assets/card-art-atlas.base64/chunk-020.txt"
+    "assets/card-art-atlas.base64/chunk-013.txt"
   ]
 }
