@@ -46,7 +46,13 @@ export function filterDeckPool(cards,{division='all',family='all',costBand='all'
 }
 
 export function loadDeckIds(storage,cards){
-  try{const raw=storage?.getItem?.(DECK_STORAGE_KEY);return normalizeDeckIds(raw?JSON.parse(raw):null,cards)}catch{return buildStarterDeck(cards)}
+  try{
+    const raw=storage?.getItem?.(DECK_STORAGE_KEY);
+    if(!raw)return buildStarterDeck(cards);
+    const parsed=JSON.parse(raw),legalIds=new Set(cards.filter(legal).map(c=>c.id));
+    if(Array.isArray(parsed)&&parsed.length<=DECK_SIZE&&new Set(parsed).size===parsed.length&&parsed.every(id=>legalIds.has(id)))return [...parsed];
+    return buildStarterDeck(cards);
+  }catch{return buildStarterDeck(cards)}
 }
 
 export function saveDeckIds(storage,ids){
