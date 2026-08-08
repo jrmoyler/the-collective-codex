@@ -17,10 +17,10 @@ const filler=(prefix='F')=>Array.from({length:DECK_SIZE},(_,i)=>makeCard(`${pref
 const fresh=(playerDeck=filler('P'),rivalDeck=filler('R'))=>createMatch({playerDeck,rivalDeck,shuffle:false,seed:7});
 const mainState=(playerDeck=filler('P'),rivalDeck=filler('R'))=>mulligan(fresh(playerDeck,rivalDeck),'player',[]);
 
-test('resource curve starts playable and ramps deterministically to a cap',()=>{
-  assert.deepEqual(resourceCurve(1),{command:5,insight:5,essence:4});
-  assert.deepEqual(resourceCurve(7),{command:8,insight:7,essence:5});
-  assert.deepEqual(resourceCurve(99),{command:10,insight:10,essence:10});
+test('resource curve starts deliberately, ramps every turn and caps at eight before card effects',()=>{
+  assert.deepEqual(resourceCurve(1),{command:2,insight:2,essence:2});
+  assert.deepEqual(resourceCurve(4),{command:5,insight:5,essence:5});
+  assert.deepEqual(resourceCurve(99),{command:8,insight:8,essence:8});
 });
 
 test('match opens with 20-point cores, five-card hands and a mulligan phase',()=>{
