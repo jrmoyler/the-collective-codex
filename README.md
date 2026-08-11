@@ -21,9 +21,11 @@ The current canon includes:
 
 The runtime remains fully offline: no card art is fetched from a remote host. The build first attempts checksum-verified reconstruction of `assets/card-art-atlas.avif` from the canonical chunk manifest under `assets/card-art-atlas.base64/`.
 
-The atlas payload inherited from the current `main` history is incomplete: the manifest checksum describes the intended compiled AVIF, but not all referenced binary payload was committed. When exact materialization is unavailable, `scripts/recover-atlas.mjs` produces a deterministic 21×54 canon-mapped AVIF locally at build time. This fallback does **not** overwrite the inherited source chunks or `assets/card-art-provenance.json`, so a future byte-exact restoration of the missing payload can replace the fallback without changing card IDs, coordinates, runtime URLs, or match code.
+The inherited PR #3 payload was forensically incomplete. Its historical 206,136-byte target (`16b869…a31`) does not exist in any reachable branch, pull-request ref, Git object, or workflow artifact, so it cannot be reconstructed byte-for-byte from repository data or its checksum. The exact missing-fragment inventory and commit history are recorded in [`docs/card-art-recovery-audit.md`](docs/card-art-recovery-audit.md).
 
-Every registry record retains a unique `(row, col)` coordinate in the 21×54 atlas. `assets/card-art-provenance.json` records the source-sheet and transformation history. The fallback exists only to keep the repository buildable and runtime-local when the inherited binary source package is incomplete; it should not be represented as a byte-exact recovery of missing historical artwork.
+The canonical payload is now repaired from the surviving byte-exact approved source sheets. All 54 canon rows use deterministic artwork-panel crops in the locked 21-division order, producing a fully embedded 2,107,628-byte AVIF (`2ec9c9…fa83`). The payload is split into 43 complete chunks and validated before use. Every registry record retains its original ID and unique `(row, col)` coordinate; no match code changed.
+
+`assets/card-art-source-manifest.json` records the exact SHA-256, byte length, family, set, and atlas row for every recovered source sheet. `npm run audit:art` verifies strict base64 round-trip, manifest size/checksum, full AVIF decoding, 1,134 unique decoded tiles, source-row provenance, canon coordinate mapping, and consistent runtime AVIF references. The emergency deterministic recovery generator remains available, but the repaired build does not use it and CI rejects an incomplete canonical payload before building.
 
 ## Playing a match
 
@@ -40,6 +42,7 @@ npm install
 npm run test
 npm run build
 npm run check
+npm run audit:art
 npm run export:cards
 ```
 
