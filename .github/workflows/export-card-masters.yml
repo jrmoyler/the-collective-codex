@@ -5,6 +5,10 @@ on:
     paths:
       - 'card-canon.js'
       - 'assets/card-art-atlas.base64/**'
+      - 'assets/card-art-source-manifest.json'
+      - 'assets/card-art-provenance.json'
+      - 'scripts/materialize-atlas.mjs'
+      - 'tests/card-art-integrity.test.mjs'
       - 'scripts/export-card-masters.mjs'
 jobs:
   export:

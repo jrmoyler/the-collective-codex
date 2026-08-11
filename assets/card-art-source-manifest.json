@@ -1,0 +1,540 @@
+{
+  "version": 1,
+  "atlas": "assets/card-art-atlas.avif",
+  "grid": {
+    "columns": 21,
+    "rows": 54,
+    "columnMapping": "division IDs 1-21",
+    "rowMapping": "sheet order in card-canon.js"
+  },
+  "historicalTarget": {
+    "binaryBytes": 206136,
+    "sha256": "16b869ecc71eeaadfd518cdee08fd71486890fb2862a548ca728fcd983ca5a31",
+    "status": "not recoverable from repository history; replaced by checksum-verified source-derived atlas"
+  },
+  "reconstruction": {
+    "sourceSheetCount": 54,
+    "sourcePolicy": "byte-exact approved generated sheet files; deterministic artwork-panel crops",
+    "sourceDimensions": {
+      "width": 1672,
+      "height": 941
+    },
+    "crop": {
+      "size": 184,
+      "xCenters": [
+        158,
+        384,
+        610,
+        836,
+        1062,
+        1288,
+        1514
+      ],
+      "yCenters": [
+        238,
+        492,
+        731
+      ]
+    },
+    "tile": {
+      "width": 80,
+      "height": 80,
+      "kernel": "lanczos3",
+      "sharpenSigma": 0.65
+    },
+    "encoding": {
+      "format": "avif",
+      "quality": 45,
+      "effort": 4,
+      "chromaSubsampling": "4:4:4"
+    }
+  },
+  "rows": [
+    {
+      "row": 0,
+      "family": "Specimen",
+      "set": 1,
+      "sourceFile": "Collective AI: Specimen Select.png",
+      "sourceBytes": 2220061,
+      "sourceSha256": "bcd23b9bca7df9c5aa4756874e2c818e262768021a2b44ee91c8184180b3e936",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 1,
+      "family": "Weapon",
+      "set": 1,
+      "sourceFile": "Futuristic Arsenal Select Interface.png",
+      "sourceBytes": 2301923,
+      "sourceSha256": "461867794defa87b304814c224ce337d0d28fb08403204c24b2f81a7b39f9d04",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 2,
+      "family": "Weapon",
+      "set": 2,
+      "sourceFile": "Futuristic Arsenal Select Interface(1).png",
+      "sourceBytes": 2488904,
+      "sourceSha256": "c1197bea913dfa54144d4317abd183c250e0a9e6dea9c43db98b7a8736737373",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 3,
+      "family": "Weapon",
+      "set": 3,
+      "sourceFile": "Futuristic Arsenal Select Interface(2).png",
+      "sourceBytes": 2336017,
+      "sourceSha256": "8687a451650f7366096e1f68aa0610a9847da46de6e595494d992da1277dfed8",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 4,
+      "family": "Weapon",
+      "set": 4,
+      "sourceFile": "Futuristic Arsenal Select Interface(3).png",
+      "sourceBytes": 2450514,
+      "sourceSha256": "5da6dbb0d9900aa69f71b2f6ee5b663556b2c7de78f23ac594bf76254e7e6c83",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 5,
+      "family": "Weapon",
+      "set": 5,
+      "sourceFile": "image-gen-1(20260806-013537).png",
+      "sourceBytes": 2267436,
+      "sourceSha256": "dd4fbce6230506ea5d89c58c605dcd0d938b7793af5310e6da1db38fcae6c016",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 6,
+      "family": "Weapon",
+      "set": 6,
+      "sourceFile": "image-gen-2(20260806-013538).png",
+      "sourceBytes": 2296011,
+      "sourceSha256": "aa5e62bdef469f605f515e96e5843cd2e1110a58e82b47c7a6748ad0b4e147ed",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 7,
+      "family": "Weapon",
+      "set": 7,
+      "sourceFile": "image-gen-3(20260806-013539).png",
+      "sourceBytes": 2323297,
+      "sourceSha256": "b96dfc39655917b3ab29dc5dbb9c7847ec15b398e4677e46bc77bd5438411117",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 8,
+      "family": "Weapon",
+      "set": 8,
+      "sourceFile": "image-gen-4(20260806-013540).png",
+      "sourceBytes": 2323765,
+      "sourceSha256": "43dad3f441f2dc6058b2c68c864083c1ca07abcbf1752498f57a78abf2aa204d",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 9,
+      "family": "Weapon",
+      "set": 9,
+      "sourceFile": "image-gen-5(20260806-013541).png",
+      "sourceBytes": 2361394,
+      "sourceSha256": "3fab9b7c0a61b9b0af209766ab7582973ea8c017fbd2bf9c4263c603adbb208c",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 10,
+      "family": "Weapon",
+      "set": 10,
+      "sourceFile": "image-gen-6(20260806-013542).png",
+      "sourceBytes": 2293030,
+      "sourceSha256": "1acda66f7b072102629962ae985f9c084314ae0252c4be3dc082031214ca2142",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 11,
+      "family": "Weapon",
+      "set": 11,
+      "sourceFile": "image-gen-7(20260806-013543).png",
+      "sourceBytes": 2287953,
+      "sourceSha256": "b5520abb9f70413a5fd166665299e36fe87972d7048d3c944805eaf0a7913f06",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 12,
+      "family": "Weapon",
+      "set": 12,
+      "sourceFile": "image-gen-8(8).png",
+      "sourceBytes": 2284526,
+      "sourceSha256": "c40231ca5432663141a3cccd562a2ccf8e87e62842ffdb3aa5dc7fef175a3afb",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 13,
+      "family": "Monster",
+      "set": 1,
+      "sourceFile": "image-gen-1(20260806-001149).png",
+      "sourceBytes": 2688037,
+      "sourceSha256": "7851df2449bec5fbfb318b53a52ddba837f356d6631097c7d7d9885b68eba929",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 14,
+      "family": "Knight",
+      "set": 1,
+      "sourceFile": "image-gen-2(20260806-001150).png",
+      "sourceBytes": 2680093,
+      "sourceSha256": "80c9782f0a63e6ed5ce33613280a28576660dae9355dbbfa4e078b56df44e293",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 15,
+      "family": "Warrior",
+      "set": 1,
+      "sourceFile": "image-gen-3(20260806-001151).png",
+      "sourceBytes": 2542908,
+      "sourceSha256": "3ce56481c7ae7801aeef469f1a5f08ba04b255249753ff7ed428da942f4860b0",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 16,
+      "family": "Magician",
+      "set": 1,
+      "sourceFile": "image-gen-4(20260806-001152).png",
+      "sourceBytes": 2751488,
+      "sourceSha256": "bc8883b7ef61f40df5ec4792a57ad162a92c3ef07bd2d0de5df2ae6f62ac58e1",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 17,
+      "family": "Environment",
+      "set": 1,
+      "sourceFile": "image-gen-5(20260806-001153).png",
+      "sourceBytes": 2591341,
+      "sourceSha256": "1e49edc18d719c40f11523766c4f2c8e49e51dac20653f34dae04b3b327ac39c",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 18,
+      "family": "Environment",
+      "set": 2,
+      "sourceFile": "image-gen-5(20260806-002141).png",
+      "sourceBytes": 2528404,
+      "sourceSha256": "68f3bb703cdc7a73c6e6fb8881464dc7dafda560eda7e2ba27ed626efdf24d75",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 19,
+      "family": "Disaster",
+      "set": 1,
+      "sourceFile": "image-gen-6(20260806-001155).png",
+      "sourceBytes": 2662744,
+      "sourceSha256": "a11c978fef95c966160ee1b682b0f8a7c5a16e106183cbd02909e59a9540da80",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 20,
+      "family": "Defense",
+      "set": 1,
+      "sourceFile": "image-gen-7(20260806-001156).png",
+      "sourceBytes": 2499262,
+      "sourceSha256": "be3e6f0b4e7bad1a8664681481fbfdfe60679cd363fb10d76e97c566c96a76aa",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 21,
+      "family": "Base",
+      "set": 1,
+      "sourceFile": "image-gen-8(4).png",
+      "sourceBytes": 2675077,
+      "sourceSha256": "db690fd66da41a0b2840df137a02c3ecdc302448262ac4c9b47c8ff299af1fc1",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 22,
+      "family": "Item",
+      "set": 1,
+      "sourceFile": "image-gen-1(20260806-012232).png",
+      "sourceBytes": 2327310,
+      "sourceSha256": "a4a6088feeeb15008ae8e1a0520708441d29a75c22137446723d368c9583c994",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 23,
+      "family": "Item",
+      "set": 2,
+      "sourceFile": "image-gen-2(20260806-012233).png",
+      "sourceBytes": 2349018,
+      "sourceSha256": "e74ef63ea4231f9bb221b63b850769edbfc970842437714d81b98a34224f17fb",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 24,
+      "family": "Item",
+      "set": 3,
+      "sourceFile": "image-gen-3(20260806-012234).png",
+      "sourceBytes": 2327690,
+      "sourceSha256": "05c158d09426f5179a876284b5176ed8356f18f1f5a5e05942b7c859fa7fcda1",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 25,
+      "family": "Item",
+      "set": 4,
+      "sourceFile": "image-gen-4(20260806-012237).png",
+      "sourceBytes": 2305440,
+      "sourceSha256": "554c1f0b835d7ed458bfa7d36b4c27a2a545933fd2f3d33b70bf092c0e6a06ca",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 26,
+      "family": "Item",
+      "set": 5,
+      "sourceFile": "image-gen-5(20260806-012238).png",
+      "sourceBytes": 2204254,
+      "sourceSha256": "963992bfd487902bec9e019fc5a36c88591a694267b83289fbcf6336bceb4d6f",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 27,
+      "family": "Item",
+      "set": 6,
+      "sourceFile": "image-gen-6(20260806-012239).png",
+      "sourceBytes": 2414944,
+      "sourceSha256": "c8e8cd8f53ea6872117f9b677221a61a59241590f26ebb9605d54732e6f09947",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 28,
+      "family": "Item",
+      "set": 7,
+      "sourceFile": "image-gen-7(20260806-012240).png",
+      "sourceBytes": 2339891,
+      "sourceSha256": "fb9eba3e5ff9c342cd4550352dffa27918a9195e3d08e2f4e9806d40a3762a60",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 29,
+      "family": "Item",
+      "set": 8,
+      "sourceFile": "image-gen-8(7).png",
+      "sourceBytes": 2294844,
+      "sourceSha256": "7c116b48a2471880096a164720e7b23d2c4863de19435d18ab48f292e86cbe70",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 30,
+      "family": "Operative",
+      "set": 1,
+      "sourceFile": "image-gen-1(20260806-014230).png",
+      "sourceBytes": 2450625,
+      "sourceSha256": "ceeb808181f1195512fb2a8e32b391c4faf06336f66baa9d651ef9867aa2f3ad",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 31,
+      "family": "Operative",
+      "set": 2,
+      "sourceFile": "image-gen-2(20260806-014231).png",
+      "sourceBytes": 2522809,
+      "sourceSha256": "26de8e23ba0f60799fe8bc93742ee0e448165ee7365a786e23d88e5cbc7c5e28",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 32,
+      "family": "Operative",
+      "set": 3,
+      "sourceFile": "image-gen-3(20260806-014232).png",
+      "sourceBytes": 2507500,
+      "sourceSha256": "0f7c526ed5fdda840c9c1195340b160e6d437f3f79f5c3ba3958c3e1080483ff",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 33,
+      "family": "Operative",
+      "set": 4,
+      "sourceFile": "image-gen-4(20260806-014233).png",
+      "sourceBytes": 2497635,
+      "sourceSha256": "ffc247c86b2594f9e22ea91c8cdec8184f799f012a8f6f9365629d71daa01d86",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 34,
+      "family": "Operative",
+      "set": 5,
+      "sourceFile": "image-gen-5(20260806-014235).png",
+      "sourceBytes": 2528513,
+      "sourceSha256": "9df9643999a34e0a50e3557892f0b0585183dad5cfb32631d4ba796c154dd0fb",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 35,
+      "family": "Operative",
+      "set": 6,
+      "sourceFile": "image-gen-6(20260806-014236).png",
+      "sourceBytes": 2407419,
+      "sourceSha256": "54a9b996e822888aa095b7fef785bf262bc035538bc60c8d933f9d32d829b5ef",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 36,
+      "family": "Operative",
+      "set": 7,
+      "sourceFile": "image-gen-7(20260806-014236).png",
+      "sourceBytes": 2574497,
+      "sourceSha256": "a463e08d9cc1369c94042cc843aa04eb3d603b0d95c0dfe41e7d3bbe22058714",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 37,
+      "family": "Operative",
+      "set": 8,
+      "sourceFile": "image-gen-8(9).png",
+      "sourceBytes": 2545726,
+      "sourceSha256": "79abe3ccd32af2ad7d9029906388e5fcb21a0af3a7627c249e5e894f635c3ba5",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 38,
+      "family": "Action",
+      "set": 1,
+      "sourceFile": "image-gen-1(20260806-014737).png",
+      "sourceBytes": 2467204,
+      "sourceSha256": "b330d84717afdf8998d2bb27f979c1b77b86995c3980215d4aa36ee8d7e4943c",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 39,
+      "family": "Trap",
+      "set": 1,
+      "sourceFile": "image-gen-2(20260806-014738).png",
+      "sourceBytes": 2374046,
+      "sourceSha256": "5935698470f32b150e3ba0642e1c0d57ec8b2951d64e3813f5b373fb0140a904",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 40,
+      "family": "Reaction",
+      "set": 1,
+      "sourceFile": "image-gen-3(20260806-014739).png",
+      "sourceBytes": 2426079,
+      "sourceSha256": "1c5f5247f48a071daf6f697cffc49f1b2ffbce88c5f15bb7d9ab3c49c1f7be8b",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 41,
+      "family": "Response",
+      "set": 1,
+      "sourceFile": "image-gen-4(20260806-014740).png",
+      "sourceBytes": 2437090,
+      "sourceSha256": "c23570fbd365bb754f27ea3b83a0ac0831b0cac830034d640bc4da0fe26231ef",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 42,
+      "family": "Law",
+      "set": 1,
+      "sourceFile": "image-gen-5(20260806-014741).png",
+      "sourceBytes": 2484333,
+      "sourceSha256": "340f6aacb75944054dfc723ebc463fe99bccce825b43e1d1c6d233780b014c37",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 43,
+      "family": "Spell",
+      "set": 1,
+      "sourceFile": "image-gen-6(20260806-014742).png",
+      "sourceBytes": 2533238,
+      "sourceSha256": "2ae7cad6dce4bfca78ec2e74f90a2f8031b98ca0af6c8f83febce0919f78fe06",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 44,
+      "family": "Hex",
+      "set": 1,
+      "sourceFile": "image-gen-7(20260806-014744).png",
+      "sourceBytes": 2398743,
+      "sourceSha256": "48f8ec3be5034bf464bdc940c999ba5a2868c6a98164e5f82f81f54718c5286d",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 45,
+      "family": "Plague",
+      "set": 1,
+      "sourceFile": "image-gen-8(10).png",
+      "sourceBytes": 2408549,
+      "sourceSha256": "fda43364ad066a9163e360f0233bfa3e956b4dfa589f91c05fd7f5ffbab2c80b",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 46,
+      "family": "Virus",
+      "set": 1,
+      "sourceFile": "image-gen-9.png",
+      "sourceBytes": 2394616,
+      "sourceSha256": "8c1d71b2b7d63b27d54ee5182817ea9220b744e9675d208e9044719a78617e4e",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 47,
+      "family": "Dragon",
+      "set": 1,
+      "sourceFile": "image-gen-1(20260806-015326).png",
+      "sourceBytes": 2708646,
+      "sourceSha256": "ca58c2d8056cf9b4459e0369008e188ce53fbe238a0215d4c751d29070955e1f",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 48,
+      "family": "Deity",
+      "set": 1,
+      "sourceFile": "image-gen-2(20260806-015327).png",
+      "sourceBytes": 2649482,
+      "sourceSha256": "f12f6343de172cf3eb85acf67c0c78771387a624ff709c7dc12ad835ceb9fbec",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 49,
+      "family": "Android",
+      "set": 1,
+      "sourceFile": "image-gen-3(20260806-015329).png",
+      "sourceBytes": 2418025,
+      "sourceSha256": "2c02053389d5256617c03edc454497f9870ac7f18c92af60ab19025718f8a6cb",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 50,
+      "family": "God",
+      "set": 1,
+      "sourceFile": "image-gen-5(20260806-015331).png",
+      "sourceBytes": 2758191,
+      "sourceSha256": "46d822e3fde49e2edf36d3495694fb501688fe71fb36204f4fe692b98162aa79",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 51,
+      "family": "Ruler",
+      "set": 1,
+      "sourceFile": "image-gen-6(20260806-015332).png",
+      "sourceBytes": 2575095,
+      "sourceSha256": "bb2d3b40b2a3a07be2ece27f1b090c438bbe0f1914de4a888e3928f9fcd038c2",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 52,
+      "family": "Ritual",
+      "set": 1,
+      "sourceFile": "image-gen-7(20260806-015333).png",
+      "sourceBytes": 2661122,
+      "sourceSha256": "af4d0c8004fe32ff061db80962db74b7cde4315269f03647132dc3e2ca2f4446",
+      "sourceKind": "recovered-original-generated-sheet"
+    },
+    {
+      "row": 53,
+      "family": "World",
+      "set": 1,
+      "sourceFile": "image-gen-8(20260806-015334).png",
+      "sourceBytes": 2596966,
+      "sourceSha256": "f2642171513d3861aad25e11510e5dfe687f66fa26de9f26d2d82a21a5fc578b",
+      "sourceKind": "recovered-original-generated-sheet"
+    }
+  ]
+}
