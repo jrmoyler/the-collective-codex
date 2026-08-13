@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import {
   DECK_SIZE, STARTING_CORE, MAX_UNITS_PER_LANE,
   resourceCurve, createMatch, mulligan, playCard, resolveCombat,
-  completePlayerTurn, effectiveCost, getPlayability
+  completePlayerTurn, effectiveCost, getPlayability, DRAW_PER_REFRESH,
+  CORE_ARMOUR_DIVISOR, MAX_LANE_BREACH
 } from '../match-engine.js';
+
+const ready=(state,side)=>{for(const lane of state.players[side].lanes)for(const unit of lane.units)unit.exhausted=false;return state;};
 
 const zero={command:0,insight:0,essence:0};
 const makeCard=(id,overrides={})=>({
@@ -17,10 +20,10 @@ const filler=(prefix='F')=>Array.from({length:DECK_SIZE},(_,i)=>makeCard(`${pref
 const fresh=(playerDeck=filler('P'),rivalDeck=filler('R'))=>createMatch({playerDeck,rivalDeck,shuffle:false,seed:7});
 const mainState=(playerDeck=filler('P'),rivalDeck=filler('R'))=>mulligan(fresh(playerDeck,rivalDeck),'player',[]);
 
-test('resource curve starts deliberately, ramps every turn and caps at eight before card effects',()=>{
+test('resource curve starts deliberately and ramps each type at its own rate to distinct caps',()=>{
   assert.deepEqual(resourceCurve(1),{command:2,insight:2,essence:2});
-  assert.deepEqual(resourceCurve(4),{command:5,insight:5,essence:5});
-  assert.deepEqual(resourceCurve(99),{command:8,insight:8,essence:8});
+  assert.deepEqual(resourceCurve(4),{command:5,insight:4,essence:3});
+  assert.deepEqual(resourceCurve(99),{command:6,insight:5,essence:4});
 });
 
 test('match opens with 20-point cores, five-card hands and a mulligan phase',()=>{
@@ -39,7 +42,7 @@ test('mulligan replaces selected cards once and begins the player main phase',()
   const next=mulligan(state,'player',[0]);
   assert.equal(next.phase,'main');
   assert.equal(next.active,'player');
-  assert.equal(next.players.player.hand.length,5);
+  assert.equal(next.players.player.hand.length,5+Math.max(0,DRAW_PER_REFRESH-1));
   assert.notEqual(next.players.player.hand[0].id,rejected);
   assert.equal(next.players.player.mulliganUsed,true);
   assert.deepEqual(next.players.player.resources,resourceCurve(1));
@@ -112,17 +115,20 @@ test('Guard reduces the first combat damage dealt to an allied unit in its lane'
   state.active='rival';
   state=playCard(state,'rival',0,0);
   state.active='player';
-  state=resolveCombat(state,'player');
+  state=resolveCombat(ready(state,'player'),'player');
   assert.equal(state.players.rival.lanes[0].units[0].power,1);
 });
 
-test('an uncontested lane deals surviving unit power to the opposing Core',()=>{
+test('an uncontested lane sends attacker power through Core armour before it reaches the Core',()=>{
   const attacker=makeCard('ATK',{power:6,cost:zero});
   let state=mainState([attacker,...filler('P').slice(1)]);
   state=playCard(state,'player',0,2);
   const before=state.players.rival.core;
-  state=resolveCombat(state,'player');
-  assert.equal(state.players.rival.core,before-6);
+  assert.equal(state.players.player.lanes[2].units[0].exhausted,true,'a freshly deployed unit cannot attack the turn it arrives');
+  state=resolveCombat(ready(state,'player'),'player');
+  assert.equal(state.players.rival.core,before-Math.min(Math.ceil(6/CORE_ARMOUR_DIVISOR),MAX_LANE_BREACH));
+  const strike=state.events.find(e=>e.type==='combat-strike');
+  assert.equal(strike.amount,6,'the raw strike is still reported for animation');
 });
 
 test('Flying bypasses a contested lane that has neither Flying nor Guard',()=>{
@@ -134,8 +140,8 @@ test('Flying bypasses a contested lane that has neither Flying nor Guard',()=>{
   state=playCard(state,'rival',0,1);
   state.active='player';
   const before=state.players.rival.core;
-  state=resolveCombat(state,'player');
-  assert.equal(state.players.rival.core,before-5);
+  state=resolveCombat(ready(state,'player'),'player');
+  assert.equal(state.players.rival.core,before-2);
   assert.equal(state.players.rival.lanes[1].units.length,1);
 });
 
@@ -150,14 +156,18 @@ test('a persistent Environment discounts the first card played into its lane by 
 
 test('Defense prevents the first two Core damage from its lane each turn',()=>{
   const defense=makeCard('DEF',{family:'Defense',cost:zero,duration:'Persistent'});
-  const attacker=makeCard('ATK',{power:6,cost:zero});
+  const attacker=makeCard('ATK',{power:12,cost:zero});
   let state=mainState([defense,...filler('P').slice(1)],[attacker,...filler('R').slice(1)]);
   state=playCard(state,'player',0,0);
   state.active='rival';
   state=playCard(state,'rival',0,0);
   const before=state.players.player.core;
-  state=resolveCombat(state,'rival');
-  assert.equal(state.players.player.core,before-4);
+  const incoming=Math.min(Math.ceil(12/CORE_ARMOUR_DIVISOR),MAX_LANE_BREACH);
+  state=resolveCombat(ready(state,'rival'),'rival');
+  assert.equal(state.players.player.core,before-Math.max(0,incoming-2));
+  const prevented=state.events.find(e=>e.type==='damage-prevented'&&e.source==='Defense');
+  assert.equal(prevented.amount,2);
+  assert.equal(prevented.side,'player');
 });
 
 test('completePlayerTurn resolves combat, runs a spending rival AI turn, then yields round two to the player',()=>{
@@ -180,7 +190,8 @@ test('combat ends the match immediately when a Core reaches zero',()=>{
   const finisher=makeCard('FINISH',{power:25,cost:zero});
   let state=mainState([finisher,...filler('P').slice(1)]);
   state=playCard(state,'player',0,0);
-  state=resolveCombat(state,'player');
+  state.players.rival.core=MAX_LANE_BREACH;
+  state=resolveCombat(ready(state,'player'),'player');
   assert.equal(state.players.rival.core,0);
   assert.equal(state.phase,'ended');
   assert.equal(state.winner,'player');
