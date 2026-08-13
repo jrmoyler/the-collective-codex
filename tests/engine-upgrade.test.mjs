@@ -411,7 +411,7 @@ test('Ritual charges once per end step and resolves out of play at Channel 3',()
 });
 
 test('families with no canonical numeric value stay inert but announce themselves',()=>{
-  for(const family of ['Operative','God','Ruler']){
+  for(const family of ['Operative','God','Ruler','World']){
     const card=makeCard(`${family}-1`,{family,power:5,cost:zero});
     let state=mainState([card,...filler('P').slice(1)]);
     const coreBefore=state.players.rival.core,resourcesBefore={...state.players.player.resources};

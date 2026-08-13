@@ -409,6 +409,7 @@ function installSupportMutable(state,side,laneIndex,card){
   if(card.family==='Hex'){const target=strongest(enemy.lanes[laneIndex].units);if(target)support.attachedEnemyUid=target.uid;}
   if(card.family==='Plague')for(const unit of enemy.lanes[laneIndex].units){unit.infected=true;emit(state,'keyword-note',{side:other(side),lane:laneIndex,uid:unit.uid,cardId:unit.card.id,keyword:'Infected',family:'Plague'});}
   if(card.family==='Response')support.pending=true;
+  if(INERT_FAMILIES[card.family])emit(state,'keyword-note',{side,lane:laneIndex,uid:support.uid,cardId:card.id,keyword:card.keywords?.[0]||null,family:card.family},`${card.name} recorded its ${INERT_FAMILIES[card.family]}; undefined keyword numerics remain informational.`);
   lane.supports.push(support);
 }
 const RESPONSE_COPY={Action:2,Weapon:2};
@@ -555,6 +556,7 @@ const TIERS={
   veteran:{maxPlays:4,minGain:0.25,coreWeight:1.6,unitWeight:1,threat:0.95,defensiveBias:1,lethalBonus:45,defenseLow:1.6,defenseHigh:0.8,handWeight:0.3,deckWeight:0.15,style:null,combatLook:0,replyLook:0,mulliganMax:2,mulliganCost:7},
   sovereign:{maxPlays:6,minGain:0.4,coreWeight:1.6,unitWeight:0.8,threat:1.6,defensiveBias:1.4,lethalBonus:140,defenseLow:3,defenseHigh:1,handWeight:1,deckWeight:0,style:{trap:1,disaster:1,hex:1,reaction:1,defense:1},combatLook:2,replyLook:1.5,mulliganMax:3,mulliganCost:6}
 };
+for(const profile of Object.values(TIERS))Object.freeze(profile);Object.freeze(TIERS);
 export const AI_TIER_PROFILES=TIERS;
 export function projectLaneDamage(state,attackerSide,laneIndex){
   const defenderSide=other(attackerSide);

@@ -19,6 +19,6 @@ Every row is derived from one byte-exact approved 1672×941 generated source she
 npm run rebuild:art -- /path/to/recovered-sheets
 ```
 
-The in-app renderer uses hybrid division/family frames and exposes card name, division, family, artwork, Command/Insight/Essence costs, power, rules, rarity, set label, and card ID. `scripts/export-card-masters.mjs` renders standalone 1500×2100 PNG masters.
+The in-app renderer uses hybrid division/family frames and exposes card name, division, family, artwork, Command/Insight/Essence costs, power, rules, rarity, set label, and card ID. `scripts/export-card-masters.mjs` renders standalone 1500×2100 PNG masters. The 1500×2100 is the native size of the composited *frame*; the artwork panel inside it is drawn from an 80×80 atlas tile, so the art itself is upscaled. See the Artwork resolution section of the README.
 
 The unrecoverable historical target and surviving fragment inventory are documented in `docs/card-art-recovery-audit.md`. It is not represented as successfully restored.

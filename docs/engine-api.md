@@ -51,7 +51,7 @@ New fields on the returned state:
 state.difficulty        // 'veteran'      — the rival AI tier
 state.playerDifficulty  // 'veteran'      — tier used when the player seat is driven by AI
 state.seed              // 3735928559     — normalised 32-bit seed
-state.seedCode          // 'VET-0000-001C' — shareable code for this match
+state.seedCode          // 'VET-3FAV-FQFE' — shareable code for this match
 state.endReason         // null | 'core' | 'fatigue'
 state.events            // Event[]        — see §3
 state.eventSeq          // number         — highest seq emitted so far
@@ -202,7 +202,7 @@ canon supplies no number, none was invented.
 | **Spell** | "Choose a target. Apply this division's primary keyword twice; **if both applications affect the same card, gain 1 Insight**." | The Spell picks one target (strongest opposing unit in its lane, else strongest friendly unit). Both applications therefore hit the same card, so the controller gains 1 Insight. The keyword applications themselves stay numeric-free. With no legal target nothing is gained. |
 | **Law** | "Global. Each player may trigger only **one repeated ability with the same name per turn**." | While any Law is in play (either side), each side gets one `Base` refresh trigger, one `Weapon` attack trigger and one `Ritual` charge per turn. Suppressed triggers emit `law-restricted`. Defense prevention is a static replacement effect, not a repeated *triggered* ability, so it is not limited. |
 | **Virus** | "The first automated or repeated trigger each turn is **delayed until the end step**." | While an opposing Virus is active, the first refresh-time automated trigger (`Base` generation or `Android` automation) is queued and flushed at that side's end step instead. Combat-time triggers are unchanged — the engine has no stack to delay them onto. |
-| **Deity** | "Once per turn, convert 1 resource into another type; **after the third conversion, empower this card by +2**." | At refresh, once per Deity, 1 resource moves from the largest pool to the smallest, but only when the gap is ≥2 (otherwise the conversion is pointless). Ties resolve Command → Insight → Essence. The third conversion permanently adds +2 power and basePower. The *choice* is made deterministically; no number is invented. |
+| **Deity** | "Once per turn, convert 1 resource into another type; **after the third conversion, empower this card by +2**." | At refresh, once per Deity, 1 resource moves from the largest pool to the smallest, but only when the gap is ≥2 (otherwise the conversion is pointless). Ties for the *source* (largest) pool resolve Command → Insight → Essence; the *destination* is the last entry of the same ordering, so ties among the smallest resolve in reverse, Essence first. The third conversion permanently adds +2 power and basePower. The *choice* is made deterministically; no number is invented. |
 | **Android** | "At refresh, **repeat this card's last non-attack lane action** if its target is still legal." | The only non-attack lane action a unit can take in this engine is a lane transfer. An Android that moved repeats the same directional move at refresh when the destination lane has room. Once per refresh. |
 | **Response** | "Copy one non-damage keyword trigger from it at **half numeric value, rounded down**." | A set Response in the lane where a friendly card resolves copies its numeric non-damage trigger at half value and is consumed. Only `Action` (+2 → +1 power) and `Weapon` (+2 → +1 first-attack bonus) have a value that survives halving; everything else halves to 0, so the Response stays set. |
 | **Ritual** | "Add one channel counter at each end step; **at 3, resolve** its division effect across all friendly lanes." | Charges once per end step (`ritual-charge`), and at 3 it resolves and goes to discard (`ritual-resolve`). Its division effect has no canonical numbers, so resolution applies no numeric effect. |
@@ -274,8 +274,13 @@ normalizeDifficulty(value, fallback?)   // validates; throws on anything else
 AI_TIER_PROFILES      // read-only introspection of the tuned weights
 ```
 
-No tier cheats. All three see the same public board, obey the same legality checks, pay the same
-costs and never look at the opponent's hand or deck. They differ only in how far they think.
+No tier cheats. All three see the same public board, obey the same legality checks and pay the same
+costs. They differ only in how far they think.
+
+They never see card *identities* they should not: no tier reads the opponent's hand contents or
+deck order. `boardEval` and `styleBias` do read `foe.hand.length` and `me.deck.length` — public
+counts that any player can see at the table, and which the UI already prints — so the precise claim
+is "sizes, never identities", not "never looks".
 
 | | recruit | veteran | sovereign |
 | --- | --- | --- | --- |
