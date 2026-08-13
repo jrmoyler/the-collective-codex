@@ -44,6 +44,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   const motionToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleMotion' }, 'aria-pressed': 'false' }, 'Reduce motion');
 
   const skipHost = h('div', { class: 'skipHost' });
+  const debriefBtn = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'debrief' }, hidden: true }, 'Debrief');
   const bar = h('header', { class: 'mBar' },
     h('div', { class: 'barLeft' },
       h('h1', { class: 'srOnly', id: 'matchTitle', tabindex: '-1' }, 'Local match'),
@@ -55,6 +56,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       motionToggle,
       logToggle,
       skipHost,
+      debriefBtn,
       h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'reset' } }, 'Reset match'),
     ),
   );
@@ -592,6 +594,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     paintLog({ bulk });
 
     const ended = match.phase === 'ended';
+    debriefBtn.hidden = !ended;
     endBtn.disabled = ended;
     if (!armed) { setText(endBtn, 'End turn'); setText(endSummary, ended ? 'Match complete' : `${projection().out} projected out · ${projection().inc} in`); }
     if (settings.get('usedKeyboard')) el.classList.add('showKeys');
@@ -677,6 +680,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
   async function showEndDialog() {
     endShown = true;
+    if (!match || match.phase !== 'ended') return;
     const m = match, p = m.players.player, r = m.players.rival;
     const title = m.winner === 'player' ? 'Victory' : m.winner === 'rival' ? 'Defeat' : 'Draw';
     announce(`${title}. Your Core ${p.core}, rival Core ${r.core}, after ${m.turnCount} turns.`, { assertive: true });
@@ -735,10 +739,13 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         initial: rematch,
       };
     });
+    // Escape / scrim dismiss must NOT abandon the match: the board stays on screen
+    // and the "Debrief" control in the match bar reopens this panel.
     if (result === 'seed' && onReplaySeed) onReplaySeed(m.seedCode);
     else if (result === 'rematch') onRematch();
     else if (result === 'edit') onEditDoctrine();
-    else onExit();
+    else if (result === 'codex') onExit();
+    else announce('Debrief closed. The final board is still on screen; reopen it from the Debrief button.');
   }
 
   function stat(label, value) { return h('div', { class: 'endStat' }, h('small', {}, label), h('b', {}, String(value))); }
@@ -840,6 +847,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       if (await confirmDialog({ title: 'Abandon this match?', body: 'The board, both Cores and the log are discarded. Your doctrine is kept.', confirmLabel: 'Abandon match' })) onExit();
     },
     copySeed: () => copySeed(),
+    debrief: () => showEndDialog(),
     readBoard: () => announce(boardSentence()),
     help: () => showKeyHelp(),
     toggleLog: () => {

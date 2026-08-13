@@ -260,7 +260,25 @@ Notes that carry meaning and must not be styled away:
   accessibility tree.
 * `.countBtn.pressure` marks a deck at ≤6 cards, because deck-out fatigue is now a real clock.
 
-### 4.5 Notifications (four channels, never mixed)
+### 4.5 Pre-match, difficulty and seeds
+
+```
+.dialogPanel.preMatchPanel
+  .eyeline + h2.dialogTitle#preTitle
+  .preGrid > .preBlock > h3 + ul            ← "Your doctrine" / "The match"
+  h3.preSubhead
+  .tierList[role=radiogroup] > button.tierBtn[role=radio][.active] > strong + span
+  label.field.preSeed > span + input#seedInput + small.analysisCaption#seedHelp
+  .dialogActions
+```
+
+The match bar's `button.barSeed` copies `state.seedCode`. The debrief carries
+`.endSeed > h3 + p + .endSeedRow > code.seedCode + .btn + .btn`, where the second button
+re-launches the same seed. `.hudBias` in the rival HUD prints the difficulty tier and states
+that the rival drafts from the full canon to mirror the player's profile — it is **not** a
+division bias, and any copy claiming a three-division rival is stale.
+
+### 4.6 Notifications (four channels, never mixed)
 
 | Channel | DOM | Used for |
 | --- | --- | --- |
@@ -506,6 +524,7 @@ previous three-division `buildStarterDeck` pool was a 96/4 structural handicap.
 
 | Item | Why |
 | --- | --- |
+| **Pre-match screen (IA-16)** | *Shipped* — `src/prematch.js`: doctrine profile from `deckProfile()`, the four rules that decide turn 1, the three difficulty tiers in plain language, and a seed-code field that replays an exact match. |
 | **Drag and drop (P1-3)** | Tap-card-then-tap-lane and the keyboard path are complete and are the canonical paths on touch and keyboard. Pointer-event drag is an accelerator on top; it was the largest remaining piece and the least load-bearing. |
 | **Resumable match in `sessionStorage` (IA-3)** | The match object holds full card objects and ~10 KB of event history; serialising it needs a validation layer as defensive as `deck-store.js`'s, and a half-validated restore is worse than none. |
 | **Codex grouping with sticky section headers (IA-10)** | Sort, six filters, chips and result count shipped. Grouped mode needs a second row-height model in the windowing maths (group headers are a different height) — worth doing, but not worth destabilising the window for. |
