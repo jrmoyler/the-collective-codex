@@ -1,1 +1,39 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050A18"><meta name="description" content="The Collective Codex — 1,134 living cards across twenty-one divisions."><title>The Collective Codex</title><link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./match.css"></head><body><div id="app"></div><script type="module" src="./app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050A18">
+<title>The Collective Codex</title>
+<meta name="description" content="The Collective Codex — 1,134 living cards across twenty-one divisions, with a deterministic three-lane local match.">
+<link rel="canonical" href="/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="The Collective Codex">
+<meta property="og:description" content="1,134 cards. 21 divisions. Three lanes, one Core.">
+<meta property="og:image" content="assets/card-art-atlas.avif">
+<meta name="twitter:card" content="summary_large_image">
+<!-- A-34 / F5: an inline favicon. There is no separate request, so no 404. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23050A18'/%3E%3Cpath d='M16 5l3.2 7.8L27 16l-7.8 3.2L16 27l-3.2-7.8L5 16l7.8-3.2z' fill='%23D4A843'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23050A18'/%3E%3Cpath d='M16 5l3.2 7.8L27 16l-7.8 3.2L16 27l-3.2-7.8L5 16l7.8-3.2z' fill='%23D4A843'/%3E%3C/svg%3E">
+<!-- PF-6: the atlas starts downloading before the module graph resolves; the
+     decode gate in src/cards.js flips <html data-art> when it is usable. -->
+<link rel="preload" as="image" href="assets/card-art-atlas.avif" fetchpriority="high">
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./match.css">
+<!-- ui.css is last on purpose: it carries the component layer and the small set
+     of overrides for artefacts that live in files the UI layer does not own. -->
+<link rel="stylesheet" href="./ui.css">
+</head>
+<body>
+<!-- Defensive: the engine has previously read `process?.env?.CODEX_*` at module
+     scope. Optional chaining does not save an *undeclared* identifier, so such a
+     line throws a ReferenceError in a browser and takes the whole module graph
+     down with it. This classic script runs before any module and neutralises it.
+     See docs/ui-contract.md § "Assumptions about match-engine.js". -->
+<script>window.process = window.process || { env: {} };</script>
+<div id="app"></div>
+<noscript><p style="padding:24px;font:16px system-ui;color:#F5F5F5">The Collective Codex needs JavaScript: the canon, the deck builder and the match engine all run in your browser.</p></noscript>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
