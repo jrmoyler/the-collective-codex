@@ -21,7 +21,7 @@ const RESOURCES = [
 ];
 const STARTING_CORE = engine.STARTING_CORE ?? 20;
 
-export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) {
+export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, onReplaySeed }) {
   let match = null;
   let handIndex = null;
   let laneCursor = 0;
@@ -39,7 +39,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
 
   const roundEl = h('b', { class: 'barRound' });
   const phaseEl = h('span', { class: 'barPhase' });
-  const seedEl = h('span', { class: 'barSeed' });
+  const seedEl = h('button', { type: 'button', class: 'barSeed', dataset: { action: 'copySeed' }, title: 'Copy this match seed' });
   const logToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleLog' }, 'aria-expanded': 'true', 'aria-controls': 'matchLog' }, 'Log');
   const motionToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleMotion' }, 'aria-pressed': 'false' }, 'Reduce motion');
 
@@ -110,9 +110,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     if (!ev) return null;
     if (ev.uid && unitNodes.has(ev.uid)) return unitNodes.get(ev.uid);
     if (ev.targetUid && unitNodes.has(ev.targetUid)) return unitNodes.get(ev.targetUid);
-    if (ev.type === 'core-damage' || ev.type === 'match-end') return ev.side === 'rival' ? hudRival.coreEl : hudPlayer.coreEl;
-    if (ev.type === 'resource-gain') return hudPlayer.pips[ev.resource]?.row || hudPlayer.coreEl;
-    if (ev.type === 'draw') return ev.side === 'player' ? handStrip : hudRival.countsEl;
+    if (ev.type === 'core-damage' || ev.type === 'match-end' || ev.type === 'fatigue') return ev.side === 'rival' ? hudRival.coreEl : hudPlayer.coreEl;
+    if (ev.type === 'resource-gain') return (ev.side === 'player' && hudPlayer.pips[ev.resource]?.row) || (ev.side === 'rival' ? hudRival.coreEl : hudPlayer.coreEl);
+    if (ev.type === 'draw' || ev.type === 'discard') return ev.side === 'player' ? handStrip : hudRival.countsEl;
+    if (ev.type === 'unit-moved' && Number.isInteger(ev.toLane)) return (ev.side === 'rival' ? rivalLanes : playerLanes)[ev.toLane]?.el || null;
+    if (ev.type === 'damage-prevented' && !Number.isInteger(ev.lane)) return ev.side === 'rival' ? hudRival.coreEl : hudPlayer.coreEl;
     if (Number.isInteger(ev.lane)) {
       const side = ev.side === 'rival' ? rivalLanes : playerLanes;
       return side[ev.lane]?.el || null;
@@ -156,10 +158,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
         pipRow.append(row);
       }
     }
+    const rivalBias = side === 'rival' ? h('div', { class: 'hudBias' }) : null;
     const el = h('div', { class: `hud hud-${side}`, 'aria-label': side === 'player' ? 'Your status' : 'Rival status' },
-      coreEl, side === 'player' ? pipRow : h('div', { class: 'hudBias' }, 'Kinetic Edge · Terra Axis · Gaia Synthesis'), countsEl,
+      coreEl, side === 'player' ? pipRow : rivalBias, countsEl,
     );
-    return { el, coreEl, coreNum, coreBar, critical, counts, countsEl, pips };
+    return { el, coreEl, coreNum, coreBar, critical, counts, countsEl, pips, bias: rivalBias };
   }
 
   function paintHud(hud, p, side) {
@@ -170,6 +173,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     hud.critical.hidden = p.core > 5;
     setAttr(hud.coreEl, 'aria-label', `${side === 'player' ? 'Your' : 'Rival'} Core ${p.core} of ${STARTING_CORE}${p.core <= 5 ? ', critical' : ''}`);
     setText(hud.counts.deck, p.deck.length);
+    // 4.5: an empty deck is a clock, not fine print.
+    setClass(hud.counts.deck.parentElement, 'pressure', p.deck.length <= 6);
+    setAttr(hud.counts.deck.parentElement, 'title', p.deck.length <= 6
+      ? `${p.deck.length} cards left — each failed draw deals escalating unpreventable Core damage.`
+      : `${p.deck.length} cards left in deck`);
     setText(hud.counts.hand, p.hand.length);
     setText(hud.counts.discard, p.discard.length);
     if (side === 'player') {
@@ -247,7 +255,10 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     setText(el._power, attack !== unit.power ? `⟨${unit.power}→${attack}⟩` : `⟨${unit.power}⟩`);
     setClass(el._power, 'buffed', attack !== unit.power);
     const chips = [];
-    if (unit.exhausted) chips.push(['EXHAUSTED ⏾', 'exhausted']);
+    if (unit.exhausted) {
+      const fresh = unit.deployedTurn === match.turnCount;
+      chips.push([fresh ? 'JUST DEPLOYED ⏾' : 'EXHAUSTED ⏾', 'exhausted']);
+    }
     if (unit.infected) chips.push(['INFECTED ☣', 'infected']);
     if (unit.weaponBonus && !unit.weaponUsed) chips.push([`WEAPON +${unit.weaponBonus} ⚔`, 'weapon']);
     if (unit.card.family === 'Knight') chips.push(['GUARD ⛨', 'guard']);
@@ -350,9 +361,10 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
       setText(cell.arrow, out === 0 && inc === 0 ? '—' : net >= 0 ? `▸▸ ${out}` : `◂◂ ${inc}`);
       setAttr(cell.el, 'data-dir', out === 0 && inc === 0 ? 'none' : net >= 0 ? 'out' : 'in');
       const open = theirs.length === 0 && mine.length > 0;
-      setText(cell.status, open ? 'OPEN — hits their Core' : theirs.length ? 'contested' : 'empty');
+      setText(cell.status, open ? 'OPEN — after armour' : theirs.length ? 'contested' : 'empty');
+      setAttr(cell.el, 'title', `Damage shown is what actually lands: Core armour reduces a raw hit to min(ceil(raw/4), 3) before Defense prevention.`);
       setClass(cell.el, 'laneCursor', i === laneCursor);
-      setAttr(cell.el, 'aria-label', `${LANES[i]}. Your power ${myPower}, rival power ${theirPower}. If the turn ends now you deal ${out} and take ${inc}.${open ? ' The rival lane is open.' : ''} Activate to target this lane.`);
+      setAttr(cell.el, 'aria-label', `${LANES[i]}. Your power ${myPower}, rival power ${theirPower}. If the turn ends now, ${out} Core damage lands on the rival and ${inc} on you, after armour.${open ? ' The rival lane is open.' : ''} Activate to target this lane.`);
       cell.el.tabIndex = i === laneCursor ? 0 : -1;
     }
     return threat;
@@ -530,7 +542,8 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
       const next = engine.playCard(match, 'player', handIndex, lane);
       handIndex = null;
       applyMatch(next);
-      announce(`${card.name} played into ${LANES[lane]}.`);
+      const isEntity = engine.ENTITY_FAMILIES.has(card.family);
+      announce(`${card.name} played into ${LANES[lane]}.${isEntity ? ' It arrives exhausted and attacks from your next refresh.' : ''}`);
     } catch (error) {
       console.error('[match] play rejected', error);
       announce(error.message, { assertive: true });
@@ -559,6 +572,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     setText(roundEl, `Round ${pad2(match.round)}`);
     setText(phaseEl, match.phase === 'mulligan' ? 'Opening hand' : match.phase === 'ended' ? 'Match complete' : match.active === 'player' ? 'Your main phase' : 'Rival phase');
     setText(seedEl, match.seedCode ? `Seed ${match.seedCode}` : '');
+    seedEl.hidden = !match.seedCode;
     setAttr(motionToggle, 'aria-pressed', motionReduced() ? 'true' : 'false');
 
     const isMulligan = match.phase === 'mulligan';
@@ -567,6 +581,9 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     handDock.hidden = isMulligan;
     if (isMulligan) { mulliganPanel.paint(match, mulliganSel); paintLog({ bulk }); return; }
 
+    // The rival drafts from the full canon to mirror your own deck profile; it has
+    // no division bias and no hidden bonuses. Only the search tier differs.
+    setText(hudRival.bias, `${(match.difficulty || 'veteran').toUpperCase()} · drafts from the full canon to mirror your profile`);
     paintHud(hudRival, match.players.rival, 'rival');
     paintHud(hudPlayer, match.players.player, 'player');
     paintLanes();
@@ -588,13 +605,14 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     const el = h('section', { class: 'mulliganPanel', hidden: true },
       h('div', { class: 'mullCopy' },
         h('span', { class: 'eyeline' }, 'Opening hand · round 01'),
-        h('h2', {}, 'Commit your first five'),
-        h('p', {}, 'Replaced cards go to the ', h('b', {}, 'bottom of your deck'), ' and you draw that many new ones. You may do this once.'),
+        h('h2', {}, 'Commit your opening hand'),
+        h('p', {}, 'Replaced cards go to the ', h('b', {}, 'bottom of your deck'), ' and are immediately redrawn. You may do this once.'),
         h('ul', { class: 'mullRules' },
-          h('li', {}, '20 ', termLink('core'), ' each side · reduce theirs to 0'),
+          h('li', {}, '20 ', termLink('core'), ' each side · reduce theirs to 0, by combat, by effect, or by ', termLink('fatigue')),
           h('li', {}, 'Three ', termLink('lane', 'lanes'), ' resolve independently'),
           h('li', {}, termLink('power'), ' is attack ', h('b', {}, 'and'), ' durability'),
-          h('li', {}, 'The rival replaces up to two opening cards costing 7 or more'),
+          h('li', {}, 'You draw 1 on your opening ', termLink('refresh'), ' and 2 every refresh after, so a kept hand of 5 becomes 6'),
+          h('li', {}, 'The rival takes its own one-time mulligan; how greedy it is depends on the difficulty tier'),
         ),
       ),
       handHost,
@@ -674,10 +692,18 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
           h('span', { class: 'eyeline' }, 'Match complete'),
           h('h2', { class: 'dialogTitle', id: 'endTitle' }, title),
           h('div', { class: 'endStats' },
-            stat('Your Core', p.core), stat('Rival Core', r.core), stat('Turns', m.turnCount),
+            stat('Your Core', p.core), stat('Rival Core', r.core), stat('Rounds', m.round),
             stat('Core dealt', m.stats?.player?.coreDamageDealt ?? '—'), stat('Core taken', m.stats?.player?.coreDamageTaken ?? '—'),
-            stat('Units lost', m.stats?.player?.unitsLost ?? '—'),
+            stat('Damage held', m.stats?.player?.damagePrevented ?? '—'),
+            stat('Units lost', m.stats?.player?.unitsLost ?? '—'), stat('Units killed', m.stats?.player?.unitsDestroyed ?? '—'),
+            stat('Biggest lane swing', m.stats?.player?.largestLaneSwing ?? '—'),
+            stat('Resources spent', m.stats?.player?.resourcesSpent?.total ?? '—'),
+            stat('Fatigue taken', m.stats?.player?.fatigueDamage ?? 0),
+            stat('Difficulty', m.difficulty || '—'),
           ),
+          h('p', { class: 'endReason' }, m.endReason === 'fatigue'
+            ? 'Ended on deck-out fatigue: a Core ran out of cards to draw.'
+            : 'Ended on Core damage.'),
           history.length > 1 ? h('div', { class: 'endChart' },
             h('h3', {}, 'Core swing per round'),
             h('div', { class: 'chartRows' }, ...history.map(entry => h('div', { class: 'chartRow' },
@@ -695,12 +721,22 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
             h('p', {}, `${p.deck.length} card${p.deck.length === 1 ? '' : 's'} stayed in your deck.`),
             stuck.length ? h('p', {}, `Sat in hand three turns or more: ${stuck.map(c => c.name).join(', ')}.`) : null,
           ),
+          m.seedCode ? h('div', { class: 'endSeed' },
+            h('h3', {}, 'Seed'),
+            h('p', {}, 'Share this code to let anyone replay the exact match, difficulty included.'),
+            h('div', { class: 'endSeedRow' },
+              h('code', { class: 'seedCode' }, m.seedCode),
+              h('button', { type: 'button', class: 'btn btnSmall', onclick: () => copySeed() }, 'Copy seed'),
+              onReplaySeed ? h('button', { type: 'button', class: 'btn btnSmall', onclick: () => close('seed') }, 'Replay this seed') : null,
+            ),
+          ) : null,
           h('div', { class: 'dialogActions' }, codex, edit, rematch),
         ),
         initial: rematch,
       };
     });
-    if (result === 'rematch') onRematch();
+    if (result === 'seed' && onReplaySeed) onReplaySeed(m.seedCode);
+    else if (result === 'rematch') onRematch();
     else if (result === 'edit') onEditDoctrine();
     else onExit();
   }
@@ -803,6 +839,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
     reset: async () => {
       if (await confirmDialog({ title: 'Abandon this match?', body: 'The board, both Cores and the log are discarded. Your doctrine is kept.', confirmLabel: 'Abandon match' })) onExit();
     },
+    copySeed: () => copySeed(),
     readBoard: () => announce(boardSentence()),
     help: () => showKeyHelp(),
     toggleLog: () => {
@@ -822,6 +859,13 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine }) 
 
   // Any input during a timeline fast-forwards it (MO-4).
   el.addEventListener('pointerdown', () => { if (motion.running) motion.cancel(); }, true);
+
+  function copySeed() {
+    const code = match?.seedCode;
+    if (!code) return;
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(code).then(() => toast(`Seed ${code} copied.`), () => toast(`Seed ${code}`));
+    else toast(`Seed ${code}`);
+  }
 
   function showDiscard(side) {
     const list = match.players[side].discard;

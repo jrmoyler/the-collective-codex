@@ -68,11 +68,11 @@ export function createHome({ deck, hasMatch }) {
       const live = hasMatch();
       doorCard(resumeCard, live
         ? { kicker: 'In progress', title: 'Resume your match', body: 'Return to the board exactly where you left it.', meta: 'Enter the battlefield' }
-        : { kicker: 'Play', title: 'Start a local match', body: 'Deterministic three-lane rules against a rival doctrine of Kinetic Edge, Terra Axis and Gaia Synthesis.', meta: n === 30 ? 'Your doctrine is ready' : `${n}/30 cards — finish your doctrine first` });
+        : { kicker: 'Play', title: 'Start a local match', body: 'Deterministic three-lane rules against a rival that drafts from the full canon to mirror your own doctrine profile. Choose its difficulty before you begin.', meta: n === 30 ? 'Your doctrine is ready' : `${n}/30 cards — finish your doctrine first` });
       resumeCard.setAttribute('href', live ? '#/match' : n === 30 ? '#/match' : '#/deck');
       doorCard(deckCard, { kicker: 'Your doctrine', title: `${n} / 30 cards`, body: 'Cost curve, entity balance and division spread, checked as you build.', meta: 'Open the builder' });
       doorCard(codexCard, { kicker: 'The canon', title: 'Browse 1,134 cards', body: '21 divisions, 28 families, 54 art sheets. Filter, sort, and link to any card.', meta: 'Open the Codex' });
-      doorCard(learnCard, { kicker: 'New here?', title: 'Learn the basics — 90 seconds', body: 'Core, lanes, the three resources, and the one rule every other card game does differently.', meta: 'Open the primer' });
+      doorCard(learnCard, { kicker: 'New here?', title: 'Learn the basics — 90 seconds', body: 'Core, lanes, the staggered resource curve, deployment fatigue, and the one rule every other card game does differently.', meta: 'Open the primer' });
       document.getElementById('homeTitle')?.focus({ preventScroll: true });
     },
     hide() { el.hidden = true; },

@@ -26,12 +26,6 @@
 <link rel="stylesheet" href="./ui.css">
 </head>
 <body>
-<!-- Defensive: the engine has previously read `process?.env?.CODEX_*` at module
-     scope. Optional chaining does not save an *undeclared* identifier, so such a
-     line throws a ReferenceError in a browser and takes the whole module graph
-     down with it. This classic script runs before any module and neutralises it.
-     See docs/ui-contract.md § "Assumptions about match-engine.js". -->
-<script>window.process = window.process || { env: {} };</script>
 <div id="app"></div>
 <noscript><p style="padding:24px;font:16px system-ui;color:#F5F5F5">The Collective Codex needs JavaScript: the canon, the deck builder and the match engine all run in your browser.</p></noscript>
 <script type="module" src="./app.js"></script>

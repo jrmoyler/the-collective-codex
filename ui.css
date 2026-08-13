@@ -643,6 +643,31 @@ html[data-art="ready"] .cardArt::after { content: none; }
 .demoVs { font: var(--t-200)/1 var(--font-mono); color: var(--danger); text-transform: uppercase; }
 .demoNote { flex-basis: 100%; font: var(--t-300)/1.5 var(--font-sans); color: var(--text-dim); margin: 0; }
 
+/* Pre-match dialog + difficulty tiers */
+.preMatchPanel { width: min(700px, 94vw); }
+.preGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); margin: var(--sp-4) 0; }
+.preBlock { border: 1px solid var(--line); padding: var(--sp-4); }
+.preBlock h3, .preSubhead { font: var(--t-200)/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); margin: 0 0 var(--sp-3); }
+.preBlock ul { margin: 0; padding-left: var(--sp-5); font: var(--t-300)/1.6 var(--font-sans); }
+.preBlock code, .rulesFootnote code, .endSeed code { font: var(--t-300)/1.4 var(--font-mono); color: var(--warn); }
+.tierList { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-3); }
+.tierBtn { display: flex; flex-direction: column; gap: var(--sp-2); text-align: left; padding: var(--sp-3); background: var(--surface-2); border: 1px solid var(--line-hi); color: var(--text); cursor: pointer; min-height: 44px; }
+.tierBtn strong { font: 600 var(--t-400)/1.2 var(--font-sans); }
+.tierBtn span { font: var(--t-300)/1.45 var(--font-sans); color: var(--text-dim); }
+.tierBtn.active { border-color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+.tierBtn.active strong { color: var(--warn); }
+.preSeed { margin-top: var(--sp-5); max-width: 340px; }
+
+.endReason { font: var(--t-300)/1.5 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-3); }
+.endSeed h3 { font: var(--t-200)/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); margin: var(--sp-4) 0 var(--sp-2); }
+.endSeed p { font: var(--t-300)/1.5 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-2); }
+.endSeedRow { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.seedCode { font: 700 var(--t-500)/1 var(--font-mono); color: var(--warn); letter-spacing: .08em; }
+.barSeed { background: 0; border: 1px solid transparent; color: var(--text-dim); font: inherit; cursor: pointer; padding: 2px 4px; }
+.barSeed:hover { border-color: var(--line-hi); color: var(--warn); }
+.countBtn.pressure { border-color: var(--danger); color: var(--danger); }
+.countBtn.pressure small { color: var(--danger); }
+
 /* ============================================================
    11. Motion FX layer  (§4.3, all transform/opacity only — MO-1)
    ============================================================ */
@@ -706,13 +731,25 @@ html[data-motion="reduce"] .fxChip { animation: none; opacity: 1; transform: tra
   .topbar nav::-webkit-scrollbar { display: none; }
   .navLink { white-space: nowrap; }
   .brand small { display: none; }
-  .mStage { grid-template-columns: 1fr; }
-  .mLog { display: none; }
-  .matchScreen { height: auto; min-height: 100dvh; }
+  /* Match: the one-viewport rule cannot hold on a phone, so the board becomes a
+     single column that scrolls, with the hand docked to the bottom of the screen. */
+  .matchScreen { display: flex; flex-direction: column; height: auto; min-height: 100dvh; overflow: visible; }
   body[data-chrome="play"] { overflow: auto; }
+  .mStage { display: block; }
+  .mLog { display: none; }
+  .mBoard { display: flex; flex-direction: column; margin: var(--sp-2); }
+  .hud { gap: var(--sp-3); padding: var(--sp-3); }
+  .coreBlock { flex: 1 1 100%; min-width: 0; }
+  .coreBar { min-width: 0; }
+  .hudCounts { flex-wrap: wrap; }
+  .pipRows { gap: var(--sp-3); width: 100%; }
   .laneRow { grid-template-columns: 1fr; }
+  .laneSide { min-height: 64px; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
   .seam { grid-template-columns: 1fr; }
   .seamCell { border-right: 0; border-bottom: 1px solid var(--line-hi); }
+  .mHand { position: sticky; bottom: 0; z-index: 20; flex-wrap: wrap; }
+  .handRight { flex-direction: row; align-items: center; width: 100%; justify-content: space-between; }
+  .mBar { flex-wrap: wrap; }
   .doorHero { grid-template-columns: 1fr; }
   .glossaryList { grid-template-columns: 1fr; gap: var(--sp-2); }
   .glossaryList dd { margin-bottom: var(--sp-3); }

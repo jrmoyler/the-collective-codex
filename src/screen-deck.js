@@ -6,7 +6,7 @@ import { h, setText, setAttr, setClass, clear, delegate, pad2 } from './core.js'
 import { divisions, families, cards, cardById, divisionById, queryCards, totalCost, FAMILY_MARK } from './cards.js';
 import { createVGrid } from './vgrid.js';
 import { toast, confirmDialog, announce, setInlineError } from './ui.js';
-import { loadDeckIds, saveDeckIds, buildStarterDeck } from '../deck-store.js';
+import { loadDeckIds, saveDeckIds, buildStarterDeck, deckProfile, castableTurn } from '../deck-store.js';
 import * as engine from '../match-engine.js';
 
 const DECK_SIZE = engine.DECK_SIZE;
@@ -156,19 +156,22 @@ export function createDeck({ store, router, onStart }) {
 
   function renderAnalysis() {
     const list = deckCards();
-    const buckets = new Array(10).fill(0);
-    for (const c of list) buckets[Math.min(9, totalCost(c))] += 1;
+    const profile = deckProfile(list);
+    // The staggered economy means "total cost" is a lie; castableTurn is the truth.
+    const buckets = new Array(8).fill(0);
+    for (const c of list) buckets[Math.min(7, castableTurn(c) - 1)] += 1;
     const max = Math.max(1, ...buckets);
     clear(curveEl);
     buckets.forEach((n, i) => {
-      curveEl.append(h('div', { class: 'curveCol', title: `${n} card${n === 1 ? '' : 's'} at total cost ${i === 9 ? '9+' : i}` },
+      const label = i === 7 ? '8+' : String(i + 1);
+      curveEl.append(h('div', { class: 'curveCol', title: `${n} card${n === 1 ? '' : 's'} first castable on turn ${label}` },
         h('span', { class: 'curveBar', style: { height: `${Math.round((n / max) * 100)}%` } }),
-        h('small', { class: 'curveTick' }, i === 9 ? '9+' : String(i)),
+        h('small', { class: 'curveTick' }, label),
         h('b', { class: 'curveNum' }, String(n)),
       ));
     });
     const curveAt = t => { const r = engine.resourceCurve(t); return `${r.command}/${r.insight}/${r.essence}`; };
-    setText(curveCaption, `Resources by turn (C/I/E): turn 1 ${curveAt(1)} · turn 3 ${curveAt(3)} · turn 5 ${curveAt(5)} · turn 7 ${curveAt(7)}.`);
+    setText(curveCaption, `Earliest castable turn. Resources ramp C/I/E ${curveAt(1)} → ${curveAt(3)} → ${curveAt(5)} (caps 6/5/4). This doctrine leans ${profile.primaryResource || '—'}; the average card lands on turn ${profile.averageCastableTurn || '—'}.`);
 
     const entities = list.filter(c => ENTITY.has(c.family)).length;
     const supports = list.filter(c => SUPPORT.has(c.family)).length;
@@ -192,8 +195,10 @@ export function createDeck({ store, router, onStart }) {
     if (list.length && entities < 12) warn(`Only ${entities} entity card${entities === 1 ? '' : 's'} — you will have nothing to hold lanes with after turn 3.`);
     const needsUnit = list.filter(c => ['Item', 'Action', 'Weapon'].includes(c.family)).length;
     if (needsUnit > entities) warn(`${needsUnit} Item/Action/Weapon cards but only ${entities} entities — those cards are unplayable in a lane with no friendly unit.`);
-    const heavy = list.filter(c => totalCost(c) >= 7).length;
-    if (heavy > 8) warn(`${heavy} cards cost 7 or more — turn 1 gives you ${curveAt(1)}, so most of your opening hand will be dead.`);
+    const late = list.filter(c => castableTurn(c) >= 5).length;
+    if (late > 10) warn(`${late} cards cannot be cast before turn 5 — with a 6-card opening hand most of it will sit dead while the rival develops.`);
+    const early = list.filter(c => castableTurn(c) <= 2).length;
+    if (list.length >= 20 && early < 6) warn(`Only ${early} card${early === 1 ? '' : 's'} castable by turn 2 — you will not contest a lane before the rival does.`);
 
     setText(countEl, `${list.length} / ${DECK_SIZE}`);
     setAttr(progress, 'aria-valuenow', String(list.length));

@@ -23,7 +23,7 @@ export function preMatchDialog({ deckCards }) {
   return openDialog(({ close }) => {
     const seedInput = h('input', {
       id: 'seedInput', type: 'text', autocomplete: 'off', spellcheck: 'false',
-      placeholder: 'e.g. VET-3YNQ-BKHH', 'aria-describedby': 'seedHelp',
+      placeholder: 'e.g. VET-3FAV-FQFE', 'aria-describedby': 'seedHelp',
     });
     const tierList = h('div', { class: 'tierList', role: 'radiogroup', 'aria-label': 'Rival difficulty' });
     const tierButtons = new Map();
@@ -74,11 +74,11 @@ export function preMatchDialog({ deckCards }) {
           h('div', { class: 'preBlock' },
             h('h3', {}, 'The match'),
             h('ul', {},
-              h('li', {}, '20 ', termLink('core'), ' each. Three ', termLink('lane', 'lanes'), ' resolve independently.'),
+              h('li', {}, '20 ', termLink('core'), ' each. Three ', termLink('lane', 'lanes'), ' resolve independently. No turn limit.'),
               h('li', {}, 'Resources ramp ', h('code', {}, `${line(1)} → ${line(3)} → ${line(5)}`), ' (C/I/E).'),
               h('li', {}, 'Units arrive ', termLink('exhausted'), ' — they defend at once but cannot attack until your next ', termLink('refresh'), '.'),
               h('li', {}, termLink('armour'), ' cuts Core damage to ', h('code', {}, 'min(⌈raw/4⌉, 3)'), ' — raw power is not face damage.'),
-              h('li', {}, 'You draw 2 each refresh. Running out of deck deals escalating ', termLink('fatigue'), ' damage.'),
+              h('li', {}, 'You draw 1 on your opening refresh and 2 every refresh after. Running out of deck deals escalating unpreventable ', termLink('fatigue'), ' damage — a second way to lose.'),
             ),
           ),
         ),
