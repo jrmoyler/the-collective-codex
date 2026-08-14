@@ -1,0 +1,130 @@
+/* ============================================================================
+   22-match-hand — the hand dock, the mulligan, the inspector, the skip
+   control, the pre-match dialog and the debrief.
+   ========================================================================== */
+
+.mHand {
+  display: flex; align-items: flex-end; gap: var(--sp-5);
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--surface-1); border-top: 1px solid var(--edge-gold);
+}
+.handLeft { flex: 1; min-width: 0; }
+.handStrip {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  height: 252px; padding-bottom: var(--sp-2);
+  overflow-x: auto; overflow-y: hidden;
+}
+.handStrip:empty { height: 0; padding: 0; }
+
+.codexCard.handCard {
+  --art-size: 96px;
+  flex: none; width: 148px; height: 244px;
+  contain-intrinsic-size: auto 244px;
+}
+.handCard .cardName { font-size: var(--t-300); min-height: 2.5em; }
+.handCard .cardFoot { flex-wrap: wrap; row-gap: 3px; }
+.handCard .cardPower { margin-left: auto; }
+.handCard .cardNote { -webkit-line-clamp: 2; flex: none; }
+.handHint { margin: var(--sp-2) 0 0; font: var(--t-200)/1.4 var(--font-mono); color: var(--text-dim); }
+
+.handRight { display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-3); }
+.endSummary { font: var(--t-200)/1.5 var(--font-mono); color: var(--text-dim); text-align: right; max-width: 34ch; }
+.endTurnBtn { min-height: 46px; padding-inline: var(--sp-6); font-size: var(--t-300); }
+.endTurnBtn.armed {
+  background: var(--danger); border-color: var(--danger); color: var(--bg); font-weight: 700;
+}
+
+/* ---- Mulligan ----------------------------------------------------------- */
+.mulliganPanel {
+  display: flex; flex-direction: column; gap: var(--sp-5);
+  padding: var(--sp-6); overflow: auto;
+}
+.mullCopy h2 { font: 600 var(--t-800)/1.15 var(--font-sans); margin: var(--sp-2) 0; letter-spacing: -.02em; }
+.mullCopy p { font: var(--t-500)/1.6 var(--font-sans); max-width: 64ch; margin: 0 0 var(--sp-3); color: var(--text-dim); }
+.mullRules { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.mullRules li {
+  padding: var(--sp-2) var(--sp-4); border: 1px solid var(--line-hi); background: var(--surface-1);
+  font: var(--t-300)/1.5 var(--font-sans);
+}
+.mullHand { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.mullHand .codexCard { width: 186px; }
+.mullActions { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+
+/* ---- Inspector ---------------------------------------------------------- */
+.inspectPanel {
+  position: fixed; right: var(--sp-5); bottom: 116px; z-index: 110;
+  width: min(340px, 92vw); padding: var(--sp-4);
+  background: var(--surface-1); border: 1px solid var(--edge-gold);
+  box-shadow: var(--e-lift);
+}
+.inspectPanel::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gold); }
+.inspectClose { position: absolute; top: var(--sp-2); right: var(--sp-2); }
+.inspectDiv {
+  font: 700 var(--t-200)/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--div-ink);
+}
+.inspectName { font: 600 var(--t-600)/1.25 var(--font-sans); margin: var(--sp-2) 0; padding-right: var(--sp-6); }
+.inspectRules { font: var(--t-300)/1.6 var(--font-sans); margin: 0 0 var(--sp-3); }
+.inspectSpecs {
+  margin: 0; display: flex; flex-direction: column; gap: 2px;
+  font: var(--t-200)/1.6 var(--font-mono); color: var(--text-dim);
+}
+.inspectSpecs div { display: grid; grid-template-columns: 72px 1fr; gap: var(--sp-3); }
+.inspectSpecs dt, .inspectSpecs dd { margin: 0; }
+.inspectSpecs dd { color: var(--text); }
+
+/* ---- Skip (MO-4) -------------------------------------------------------- */
+.skipHost { display: flex; align-items: center; }
+.skipTimeline {
+  padding: var(--sp-2) var(--sp-4); cursor: pointer;
+  background: var(--gold); border: 1px solid var(--gold); color: var(--bg);
+  font: 700 var(--t-200)/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+}
+
+/* ---- Pre-match dialog --------------------------------------------------- */
+.preMatchPanel { width: min(720px, 94vw); }
+.preGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-4); margin: var(--sp-5) 0; }
+.preBlock { padding: var(--sp-4); border: 1px solid var(--line-hi); background: var(--surface-2); }
+.preBlock h3, .preSubhead {
+  margin: 0 0 var(--sp-3);
+  font: var(--t-200)/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.preBlock ul { margin: 0; padding-left: var(--sp-5); font: var(--t-300)/1.7 var(--font-sans); }
+.preBlock code, .rulesFootnote code, .endSeed code { font: var(--t-300)/1.5 var(--font-mono); color: var(--gold); }
+.tierList { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-3); }
+.tierBtn {
+  display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start;
+  min-height: 46px; padding: var(--sp-4); cursor: pointer; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text);
+}
+.tierBtn:hover { background: var(--surface-3); }
+.tierBtn strong { font: 600 var(--t-400)/1.25 var(--font-sans); }
+.tierBtn span { font: var(--t-300)/1.5 var(--font-sans); color: var(--text-dim); }
+.tierBtn.active { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); background: rgba(227, 183, 83, .07); }
+.tierBtn.active strong { color: var(--gold); }
+.preSeed { margin-top: var(--sp-5); max-width: 360px; }
+
+/* ---- Debrief ------------------------------------------------------------ */
+.endPanel { width: min(700px, 94vw); }
+.endPanel .dialogTitle { font-size: var(--t-800); }
+.endReason { font: var(--t-400)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-4); }
+.endStats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: var(--sp-3); margin: var(--sp-5) 0; }
+.endStat { display: flex; flex-direction: column; gap: 3px; padding: var(--sp-4); border: 1px solid var(--line-hi); background: var(--surface-2); }
+.endStat small { font: var(--t-200)/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); }
+.endStat b { font: 700 var(--t-600)/1.1 var(--font-mono); color: var(--gold); }
+.endChart h3, .endList h3, .endSeed h3 {
+  margin: var(--sp-5) 0 var(--sp-3);
+  font: var(--t-200)/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim);
+}
+.chartRows { display: flex; flex-direction: column; gap: 3px; }
+.chartRow { display: grid; grid-template-columns: 38px 1fr 1fr; gap: var(--sp-2); align-items: center; }
+.chartRow small { font: var(--t-200)/1 var(--font-mono); color: var(--text-dim); }
+.chartBar { padding: 3px 5px; min-width: 26px; font: var(--t-200)/1.4 var(--font-mono); }
+.chartYou  { background: rgba(74, 215, 196, .20); border-left: 2px solid var(--ok); }
+.chartThem { background: rgba(255, 107, 107, .18); border-left: 2px solid var(--danger); }
+.endList ul { margin: 0; padding-left: var(--sp-5); font: var(--t-300)/1.7 var(--font-sans); }
+.endList p { font: var(--t-300)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-2); }
+.endSeed p { font: var(--t-300)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-3); }
+.endSeedRow { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.seedCode { font: 700 var(--t-500)/1 var(--font-mono); letter-spacing: .1em; color: var(--gold); }

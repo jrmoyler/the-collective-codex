@@ -1,0 +1,85 @@
+/* ============================================================================
+   33-motion — the visual half of the animation layer (§4.3).
+   Rules that are not negotiable here:
+     MO-1  only transform and opacity are animated. Nothing in this file
+           animates width, height, top/left, box-shadow, background-position
+           or border-colour.
+     MO-2  nothing exceeds --dur-scene, and nothing loops. The Legendary foil
+           sweep (07-card.css) is a single pass on intent.
+     MO-6  reduced motion collapses MOVEMENT, never INFORMATION. Damage chips,
+           prevented chips, counters, event order and the Skip control all
+           survive; they simply arrive in place instead of travelling.
+     MO-7  one switch: --motion-scale, set to 0 by src/core.js.
+     MO-9  nothing animates on more than ~24 elements at once; the Codex grid
+           has no entrance animation at all.
+   Every animation below encodes a state change that has already happened to
+   the board. None of them exists to look busy.
+   ========================================================================== */
+
+.fxHost { position: relative; }
+
+/* A damage / prevention chip rises out of the thing it happened to. */
+.fxChip {
+  position: absolute; left: 50%; top: 0; z-index: 6;
+  transform: translateX(-50%);
+  padding: 2px 6px; white-space: nowrap; pointer-events: none;
+  background: var(--bg); border: 1px solid currentColor;
+  font: 700 var(--t-200)/1.3 var(--font-mono);
+  animation: chipRise calc(520ms * var(--motion-scale) + 1ms) var(--ease-out) forwards;
+}
+.fxChip-danger { color: var(--danger); }
+.fxChip-ok     { color: var(--ok); }
+.fxChip-strike { color: var(--gold); }
+@keyframes chipRise {
+  0%   { opacity: 0; transform: translate(-50%, 8px); }
+  18%  { opacity: 1; transform: translate(-50%, 0); }
+  70%  { opacity: 1; transform: translate(-50%, -8px); }
+  100% { opacity: 0; transform: translate(-50%, -16px); }
+}
+
+/* The HUD shakes only when the damaged side is the player. */
+.fxCoreHit { animation: coreShake calc(180ms * var(--motion-scale) + 1ms) var(--ease-out) 2; }
+@keyframes coreShake {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Everything else is a 1px outline flare on the element the event names, so
+   the eye is told WHERE before it is told what. */
+.fxCoreDrop, .fxPrevent, .fxTrigger, .fxLand, .fxClash, .fxDraw, .fxScene {
+  outline: 2px solid currentColor; outline-offset: 2px;
+}
+.fxCoreDrop { color: var(--danger); }
+.fxPrevent  { color: var(--ok); }
+.fxTrigger, .fxLand, .fxDraw, .fxScene { color: var(--gold); }
+.fxLand  { animation: fxLand calc(280ms * var(--motion-scale) + 1ms) var(--ease-out); }
+.fxClash { color: var(--danger); animation: clashLunge calc(300ms * var(--motion-scale) + 1ms) var(--ease-out); }
+@keyframes fxLand    { from { transform: scale(.94); opacity: .6; } to { transform: none; opacity: 1; } }
+@keyframes clashLunge { 0%, 100% { transform: none; } 45% { transform: translateY(-7px) scale(1.02); } }
+
+/* ---- Reduced motion (MO-6/7/8) ------------------------------------------
+   One switch and one media block; not scattered per-component overrides. */
+html[data-motion="reduce"] *,
+html[data-motion="reduce"] *::before,
+html[data-motion="reduce"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-motion="reduce"] .fxChip { animation: none; opacity: 1; transform: translate(-50%, -8px); }
+html[data-motion="reduce"] .codexCard[data-rarity="Legendary"]::after { animation: none; opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"]) *,
+  html:not([data-motion="full"]) *::before,
+  html:not([data-motion="full"]) *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  html:not([data-motion="full"]) .fxChip { animation: none; opacity: 1; transform: translate(-50%, -8px); }
+  html:not([data-motion="full"]) .codexCard[data-rarity="Legendary"]::after { animation: none; opacity: 0; }
+}

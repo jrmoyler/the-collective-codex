@@ -1,0 +1,36 @@
+/* ============================================================================
+   35-a11y — the last word. Preference-driven fallbacks that must beat every
+   component rule above them.
+   ========================================================================== */
+
+/* AX-13: more contrast promotes every hairline one step and lifts dim text. */
+@media (prefers-contrast: more) {
+  :root {
+    --line: #2C3E66;
+    --line-hi: #566D9E;
+    --line-strong: #8496B4;
+    --text-dim: #C6D2E4;
+    --text-mute: #AFBDD4;
+    --edge-gold: #C39A3C;
+  }
+  .codexCard { --frame: var(--div-band-ink); }
+  .logLine, .cardNote, .seamStatus { color: var(--text); }
+}
+
+/* AX-10: in forced colours, every state that leans on a fill or a tint must
+   fall back to system colours and border STYLE. */
+@media (forced-colors: active) {
+  .codexCard, .battleUnit, .supportChip, .btn, .chip, .countBtn, .tierBtn, .doorCard {
+    border: 1px solid ButtonText; background: Canvas; color: CanvasText;
+  }
+  .codexCard.selected, .btn.primary, .tierBtn.active { border: 3px solid Highlight; }
+  .codexCard.isDisabled, .supportChip.disabled, .btn:disabled, .btn[aria-disabled="true"] { border-style: dotted; }
+  .codexCard[data-rarity="Legendary"]::after { display: none; }
+  .coreSeg.lit, .pips i.full, .deckSeg.filled, .curveBar, .spreadSeg[data-n="1"] {
+    background: Highlight; forced-color-adjust: none;
+  }
+  .laneSide[data-legal="yes"], .laneSide[data-legal="no"], .laneSide.laneCursor,
+  .seamCell.laneCursor { box-shadow: none; outline: 3px solid Highlight; outline-offset: -3px; }
+  .cardArt::before, .battleUnitArt::before { background: none; }
+  .supportChip.faceDown { background: Canvas; border-style: dashed; }
+}
