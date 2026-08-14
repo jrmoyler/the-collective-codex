@@ -90,4 +90,18 @@ h1.screenTitle, .screenTitle {
   font: 600 var(--t-800)/1.1 var(--font-sans); letter-spacing: -.02em;
   margin: var(--sp-3) 0 0; color: var(--text);
 }
-.screenTitle:focus-visible { outline-offset: 4px; }
+/* A heading takes focus programmatically after navigation and after the primer
+   closes, so its focus ring is the first thing a new player sees. The default
+   full-bleed rectangle made it read as an empty text input — on the deck screen
+   it sat directly above the real search field, two identical boxes, one of them
+   typeable. A leading bar plus a tint is just as visible and cannot be mistaken
+   for an affordance. */
+/* tabindex="-1", so it only ever receives focus programmatically — styling
+   :focus as well as :focus-visible cannot affect a mouse user. */
+.screenTitle:focus,
+.screenTitle:focus-visible {
+  outline: none;
+  padding-inline-start: .5rem;
+  border-inline-start: 3px solid var(--focus);
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+}

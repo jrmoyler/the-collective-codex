@@ -8,6 +8,13 @@
 .homeScreen, .rulesScreen { overflow: auto; }
 .doorMain, .rulesMain { max-width: 1180px; margin: 0 auto; padding: var(--sp-7) var(--sp-6) var(--sp-8); }
 .doorHead { margin-bottom: var(--sp-6); }
+/* The front door is the one screen allowed to raise its voice. Everything else
+   in the product lives between 12 and 28px; --t-display exists for exactly this
+   and had never been referenced. */
+#homeTitle {
+  font-size: var(--t-display); line-height: .92; letter-spacing: -.035em;
+  max-width: 18ch; margin-block: var(--sp-2) var(--sp-3);
+}
 
 .doorGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(248px, 1fr)); gap: var(--sp-4); }
 .doorCard {

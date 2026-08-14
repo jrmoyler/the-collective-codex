@@ -77,7 +77,10 @@ function launch(ids, options = {}) {
       difficulty: options.seed ? undefined : (options.difficulty || settings.get('difficulty') || undefined),
     });
     matchScreen.setMatch(match);
-    router.go({ view: 'match', id: null, query: {} });
+    /* force: the URL may already be #/match — arriving there without a match
+       redirects to the deck builder — so the board has to be mounted on a
+       resolved-view change the URL cannot express. */
+    router.go({ view: 'match', id: null, query: {} }, { force: true });
   } catch (error) {
     console.error('[app] could not start match', error);
     toast(error.message, { kind: 'warn' });

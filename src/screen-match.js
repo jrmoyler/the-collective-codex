@@ -707,7 +707,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       return {
         node: h('div', { class: 'dialogPanel endPanel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'endTitle' },
           h('span', { class: 'eyeline' }, 'Match complete'),
-          h('h2', { class: 'dialogTitle', id: 'endTitle' }, title),
+          h('h2', { class: 'dialogTitle endVerdict', id: 'endTitle', dataset: { outcome: m.winner || 'draw' } }, title),
           h('div', { class: 'endStats' },
             stat('Your Core', p.core), stat('Rival Core', r.core), stat('Rounds', m.round),
             stat('Core dealt', m.stats?.player?.coreDamageDealt ?? '—'), stat('Core taken', m.stats?.player?.coreDamageTaken ?? '—'),

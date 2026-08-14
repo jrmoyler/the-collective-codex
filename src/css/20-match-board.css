@@ -67,25 +67,35 @@
 }
 /* VD-26: 20 segments, a tabular numeral, and the word CRITICAL. Never colour
    on its own. */
+/* Both Cores are the same quantity, so both bars are the same object: identical
+   track width, identical segment treatment, identical lit weight. They used to
+   flex, and because .hudBias shared the rival's row the rival's bar rendered at
+   256px against the player's 638px — the same number, drawn 2.5x longer on one
+   side. A full rival Core read as a depleted one. */
 .coreBar {
   display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px;
-  flex: 1 1 160px; min-width: 120px; height: 12px;
+  /* Explicit width + flex:none, not `flex: 0 0 clamp(...)` — a clamp() in the
+     flex shorthand's basis position drops the whole declaration and the bar
+     collapses to zero width. */
+  flex: none; width: clamp(180px, 22vw, 320px); height: 12px;
   padding: 1px; border: 1px solid var(--line);
   background: var(--sunken);
 }
 .coreSeg { background: var(--line-hi); }
 .coreSeg.lit { background: var(--ok); }
 .coreBar.critical .coreSeg.lit { background: var(--danger); }
-/* Whose Core is this? Answered before the label is read: the rival's segments
-   are the neutral --info blue, yours are the live --ok teal, and either bar
-   turns --danger under 6. */
-.hud-rival .coreSeg.lit { background: var(--info); }
-.hud-rival .coreNum { color: var(--info); }
-.hud-player .coreNum { color: var(--gold); }
+/* Whose Core is this? Both fills are full-chroma "lit" colours so neither bar
+   can read as spent — the rival's amber against your teal — and either turns
+   --danger under 6. The previous neutral --info steel on the rival was the
+   quietest colour in the palette, so a rival at 20/20 looked beaten. */
+.hud-rival .coreSeg.lit { background: var(--gold); }
+.hud-rival .coreNum { color: var(--gold); }
+.hud-player .coreNum { color: var(--ok); }
 
+/* Flavour, not a gauge: it gets its own line rather than eating the bar's row. */
 .hudBias {
   font: var(--t-200)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
-  color: var(--text-mute); flex: 1 1 auto; min-width: 0;
+  color: var(--text-mute); flex: 1 0 100%; order: 9; min-width: 0;
 }
 .hudCounts { display: flex; gap: var(--sp-2); margin-left: auto; }
 .countBtn {
@@ -134,6 +144,39 @@
   border-right: 1px solid var(--line-strong);
 }
 .laneSide:last-child { border-right: 0; }
+/* `overflow: auto` on a 110px-tall bay produced no scrollbar and no other cue,
+   so at 1280x800 the rival's units rendered with their top half showing and
+   their name, power and keyword chips simply gone — you could not read the
+   power of the units attacking you, on the most common laptop size, with
+   nothing on screen to suggest anything was missing.
+
+   Two defences. First the tile shrinks on short viewports (below) so the
+   content fits at all. Second, if it still overflows, these scroll shadows
+   make it visible: they are painted against the scrollport, so the top and
+   bottom fades only appear while there is actually more content that way. */
+.laneSide {
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+  background-size: 100% 14px, 100% 14px, 100% 8px, 100% 8px;
+  background-position: 0 0, 0 100%, 0 0, 0 100%;
+}
+.laneSide-rival, .laneSide-player {
+  background-image:
+    linear-gradient(180deg, var(--pit), transparent),
+    linear-gradient(0deg,   var(--pit), transparent),
+    linear-gradient(180deg, rgba(0,0,0,.55), transparent),
+    linear-gradient(0deg,   rgba(0,0,0,.55), transparent);
+}
+
+/* Short viewports: the board is a fixed-height grid, so when vertical space
+   runs out something has to give. It is the artwork, never the numbers. */
+@media (max-height: 900px) {
+  .laneRow .battleUnit { --art-size: 44px; }
+  .laneSide { padding: var(--sp-2); gap: var(--sp-1); }
+}
+@media (max-height: 760px) {
+  .laneRow .battleUnit { --art-size: 32px; }
+}
 /* The tint deepens toward the seam, so the middle of the board is where the
    pressure visibly is. This and the seam are the whole ownership system. */
 .laneSide-rival  { background: linear-gradient(180deg, transparent, var(--tint-rival)); }

@@ -201,9 +201,25 @@
   background-origin: content-box, border-box;
   background-clip: content-box, border-box;
   background-repeat: no-repeat, no-repeat;
-  background-size: calc(var(--art-size) * 21) calc(var(--art-size) * 54), auto;
+  /* Only the SAFE INTERIOR of each tile is shown: a 50x50 square taken at
+     offset (15, 13) inside the 80x80 tile.
+
+     The atlas was cropped from generated card-interface mockups and the crops
+     kept the mockups' own chrome — a cost badge in one top corner, a glyph in
+     the other, and on many rows a full nameplate across the bottom. Shown
+     whole, a card named "Terra Titan of the Long Now" displays a plate reading
+     "MALGOR / Ender of Worlds", and an Operative reads "Jaxon Hale / Shadow
+     Sniper / LV 40" — four pixels above the real nameplate, contradicting it.
+     The atlas bytes are immutable here (its SHA-256 is a test contract), so the
+     window is narrowed instead. Verified across all 54 rows.
+
+     One tile is 80/50 = 1.6 windows wide, so:
+       background-size     = 21 * 1.6 S  x  54 * 1.6 S   = 33.6S x 86.4S
+       background-position = -(art * 1.6 + offset/50) * S                    */
+  background-size: calc(var(--art-size) * 33.6) calc(var(--art-size) * 86.4), auto;
   background-position:
-    calc(-1 * var(--art-x, 0) * var(--art-size)) calc(-1 * var(--art-y, 0) * var(--art-size)),
+    calc(var(--art-size) * (var(--art-x, 0) * -1.6 - 0.3))
+    calc(var(--art-size) * (var(--art-y, 0) * -1.6 - 0.26)),
     0 0;
   box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
 }

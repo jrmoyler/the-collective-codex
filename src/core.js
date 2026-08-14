@@ -293,14 +293,25 @@ export const router = (() => {
      *  the Back/Forward buttons. Screens use it to avoid stealing focus from a
      *  field the user is typing in (A-3). */
     get selfNav() { return selfNav; },
-    /** `replace:true` for refinements (typing) so Back doesn't walk keystrokes (IA-2). */
-    go(route, { replace = false } = {}) {
+    /** `replace:true` for refinements (typing) so Back doesn't walk keystrokes (IA-2).
+     *
+     *  `force:true` re-runs the listeners even when the URL is unchanged. A route
+     *  does not always resolve to the same screen: `#/match` shows the board when
+     *  a match exists and redirects to the deck builder when one does not. So
+     *  starting a match while already sitting on `#/match` changes the resolved
+     *  view without changing the URL, and de-duplicating on the URL alone left
+     *  the deck builder mounted and the board unreachable from the nav bar. */
+    go(route, { replace = false, force = false } = {}) {
       const url = serialize({ ...current, ...route });
-      if (url === location.hash) { current = parse(); return; }
+      if (url === location.hash) {
+        current = parse();
+        if (force) emit(true);
+        return;
+      }
       if (replace) history.replaceState(null, '', url);
       else history.pushState(null, '', url);
       selfNav = true;
-      try { emit(); } finally { selfNav = false; }
+      try { emit(force); } finally { selfNav = false; }
     },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     start() {

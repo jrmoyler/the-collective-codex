@@ -107,7 +107,19 @@
 
 /* ---- Debrief ------------------------------------------------------------ */
 .endPanel { width: min(700px, 94vw); }
-.endPanel .dialogTitle { font-size: var(--t-800); }
+/* The verdict is the emotional terminus of a match and it was set at 28px —
+   the same size as a filter label, and the largest type anywhere in the
+   product. --t-900 and --t-display were defined and never once referenced, so
+   the design had no volume knob at all. This is where it gets used. */
+.endVerdict {
+  font-size: var(--t-900); line-height: .95; letter-spacing: -.03em;
+  margin-block: var(--sp-1) var(--sp-4);
+}
+.endVerdict[data-outcome="player"] { color: var(--ok); }
+.endVerdict[data-outcome="rival"]  { color: var(--danger); }
+/* The eyeline sits directly above it and was being bisected by the panel's top
+   border, so every match ended on a screen showing a sliver of clipped glyphs. */
+.endPanel .eyeline { display: block; padding-block-start: var(--sp-1); }
 .endReason { font: var(--t-400)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-4); }
 .endStats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: var(--sp-3); margin: var(--sp-5) 0; }
 .endStat { display: flex; flex-direction: column; gap: 3px; padding: var(--sp-4); border: 1px solid var(--line-hi); background: var(--surface-2); }

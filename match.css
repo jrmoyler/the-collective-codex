@@ -63,7 +63,8 @@
 
 .coreBar {
   display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px;
-  flex: 1 1 160px; min-width: 120px; height: 12px;
+
+  flex: none; width: clamp(180px, 22vw, 320px); height: 12px;
   padding: 1px; border: 1px solid var(--line);
   background: var(--sunken);
 }
@@ -71,13 +72,13 @@
 .coreSeg.lit { background: var(--ok); }
 .coreBar.critical .coreSeg.lit { background: var(--danger); }
 
-.hud-rival .coreSeg.lit { background: var(--info); }
-.hud-rival .coreNum { color: var(--info); }
-.hud-player .coreNum { color: var(--gold); }
+.hud-rival .coreSeg.lit { background: var(--gold); }
+.hud-rival .coreNum { color: var(--gold); }
+.hud-player .coreNum { color: var(--ok); }
 
 .hudBias {
   font: var(--t-200)/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
-  color: var(--text-mute); flex: 1 1 auto; min-width: 0;
+  color: var(--text-mute); flex: 1 0 100%; order: 9; min-width: 0;
 }
 .hudCounts { display: flex; gap: var(--sp-2); margin-left: auto; }
 .countBtn {
@@ -119,6 +120,28 @@
   border-right: 1px solid var(--line-strong);
 }
 .laneSide:last-child { border-right: 0; }
+
+.laneSide {
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+  background-size: 100% 14px, 100% 14px, 100% 8px, 100% 8px;
+  background-position: 0 0, 0 100%, 0 0, 0 100%;
+}
+.laneSide-rival, .laneSide-player {
+  background-image:
+    linear-gradient(180deg, var(--pit), transparent),
+    linear-gradient(0deg,   var(--pit), transparent),
+    linear-gradient(180deg, rgba(0,0,0,.55), transparent),
+    linear-gradient(0deg,   rgba(0,0,0,.55), transparent);
+}
+
+@media (max-height: 900px) {
+  .laneRow .battleUnit { --art-size: 44px; }
+  .laneSide { padding: var(--sp-2); gap: var(--sp-1); }
+}
+@media (max-height: 760px) {
+  .laneRow .battleUnit { --art-size: 32px; }
+}
 
 .laneSide-rival  { background: linear-gradient(180deg, transparent, var(--tint-rival)); }
 .laneSide-player { background: linear-gradient(0deg, transparent, var(--tint-player)); }
@@ -377,7 +400,15 @@
 .preSeed { margin-top: var(--sp-5); max-width: 360px; }
 
 .endPanel { width: min(700px, 94vw); }
-.endPanel .dialogTitle { font-size: var(--t-800); }
+
+.endVerdict {
+  font-size: var(--t-900); line-height: .95; letter-spacing: -.03em;
+  margin-block: var(--sp-1) var(--sp-4);
+}
+.endVerdict[data-outcome="player"] { color: var(--ok); }
+.endVerdict[data-outcome="rival"]  { color: var(--danger); }
+
+.endPanel .eyeline { display: block; padding-block-start: var(--sp-1); }
 .endReason { font: var(--t-400)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-4); }
 .endStats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: var(--sp-3); margin: var(--sp-5) 0; }
 .endStat { display: flex; flex-direction: column; gap: 3px; padding: var(--sp-4); border: 1px solid var(--line-hi); background: var(--surface-2); }
