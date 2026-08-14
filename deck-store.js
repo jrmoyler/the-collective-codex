@@ -24,7 +24,17 @@ export function deckProfile(deckCards){
   profile.primaryResource=cards.length?keys[0]:null;
   return profile;
 }
-const draftScore=card=>castableTurn(card)*100+totalCost(card)*4-Math.min(6,card.power||0);
+/* Within a curve band every card is affordable by definition, so the only thing
+ * left to want is the biggest body for the slot. Cost is deliberately NOT scored
+ * here: it is already spent choosing the band. Scoring it again is what made the
+ * old starter deck the weakest deck in the game -- it weighted cost at 100x and
+ * power at 6, so it drafted the cheapest 30 cards in the canon and lost to every
+ * other archetype 0-1% of the time. */
+const draftScore=card=>-(card.power||0);
+/* Cards per earliest-castable turn. Sums to DECK_SIZE. A deck that is all
+ * one-drops gets run over from turn four; a deck of nine-drops never gets to
+ * play. The shape matters more than any single pick. */
+const CURVE_QUOTA=[[1,4],[2,5],[3,7],[4,6],[5,5],[9,3]];
 
 function balancedPick(pool,count,used){
   const grouped=new Map();
@@ -43,10 +53,20 @@ function balancedPick(pool,count,used){
 }
 
 export function buildStarterDeck(cards){
-  const usable=cards.filter(legal),used=new Set();
+  const usable=cards.filter(legal),used=new Set(),ids=[];
+  /* Entities win lanes, so they carry the curve; supports fill the tail. */
   const entities=usable.filter(c=>ENTITY_FAMILIES.has(c.family));
   const nonEntities=usable.filter(c=>!ENTITY_FAMILIES.has(c.family));
-  const ids=[...balancedPick(entities,18,used),...balancedPick(nonEntities,12,used)];
+  let previous=0;
+  for(const [turn,count] of CURVE_QUOTA){
+    const band=entities.filter(c=>{const t=castableTurn(c);return t>previous&&t<=turn});
+    ids.push(...balancedPick(band,count,used));
+    previous=turn;
+  }
+  /* Whatever the bands could not fill comes back as entities, then supports,
+   * then anything legal -- the deck must always reach exactly DECK_SIZE. */
+  if(ids.length<DECK_SIZE)ids.push(...balancedPick(entities,DECK_SIZE-ids.length,used));
+  ids.push(...balancedPick(nonEntities,Math.max(0,Math.min(6,DECK_SIZE-ids.length)),used));
   if(ids.length<DECK_SIZE)ids.push(...balancedPick(usable,DECK_SIZE-ids.length,used));
   return ids.slice(0,DECK_SIZE);
 }

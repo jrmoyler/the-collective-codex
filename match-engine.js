@@ -5,6 +5,14 @@ export const MAX_UNITS_PER_LANE=3;
 export const MAX_SUPPORTS_PER_LANE=4;
 export const LANE_NAMES=['Vanguard','Conduit','Flank'];
 export const RESOURCE_KEYS=['command','insight','essence'];
+/* Deliberately generous relative to the canon's 0..3 per-type cost range.
+ * Tightening these to 3/3/3 was measured and rejected: it gates the curve
+ * properly, but it also means you can afford one expensive body or three cheap
+ * ones, and three small bodies beat one large one in this combat model. A
+ * cheap-swarm deck went from losing every matchup to winning 92-100% of them.
+ * The looser caps keep raw power decisive, which is what makes a curve deck the
+ * strongest archetype. The cost of that choice is low resource utilisation --
+ * see docs/match-rules.md. */
 export const RESOURCE_CAPS={command:6,insight:5,essence:4};
 export const RESOURCE_CEILING=10;
 export const REGROUP_RECOVERY=2;
