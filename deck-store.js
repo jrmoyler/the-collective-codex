@@ -31,10 +31,24 @@ export function deckProfile(deckCards){
  * power at 6, so it drafted the cheapest 30 cards in the canon and lost to every
  * other archetype 0-1% of the time. */
 const draftScore=card=>-(card.power||0);
-/* Cards per earliest-castable turn. Sums to DECK_SIZE. A deck that is all
- * one-drops gets run over from turn four; a deck of nine-drops never gets to
- * play. The shape matters more than any single pick. */
-const CURVE_QUOTA=[[1,4],[2,5],[3,7],[4,6],[5,5],[9,3]];
+/* Entity cards per earliest-castable turn. A deck that is all one-drops gets
+ * run over from turn four; a deck of nine-drops never gets to play. The shape
+ * matters more than any single pick.
+ *
+ * This sums to 27, deliberately NOT to DECK_SIZE. When it summed to exactly 30
+ * the entity bands filled the deck outright, the support draft was handed
+ * count=0, and buildStarterDeck returned 30 entities and zero supports.
+ * buildRivalDeck mirrors that profile, so no deck in normal play contained a
+ * Trap, Base, Law, Ritual, Virus or Defense -- 17 of 28 families and 12 event
+ * types were unreachable however well the AI played them.
+ *
+ * The 3-card support tail is a measured compromise. Supports are weak in this
+ * engine, so they cost real strength: over a 4-archetype round robin the
+ * starter deck's average win rate falls from 83% at zero supports to 58% at
+ * three and 32% at six. Three keeps it clearly ahead of the swarm and
+ * top-heavy decks while making half the card families something a player
+ * actually sees. */
+const CURVE_QUOTA=[[1,3],[2,5],[3,6],[4,5],[5,5],[9,3]];
 
 function balancedPick(pool,count,used){
   const grouped=new Map();
@@ -63,10 +77,11 @@ export function buildStarterDeck(cards){
     ids.push(...balancedPick(band,count,used));
     previous=turn;
   }
-  /* Whatever the bands could not fill comes back as entities, then supports,
-   * then anything legal -- the deck must always reach exactly DECK_SIZE. */
+  /* Supports are drafted BEFORE the entity fallback. The other order looks
+   * harmless and is not: the fallback fills to DECK_SIZE first and the support
+   * draft then asks for zero. */
+  ids.push(...balancedPick(nonEntities,Math.max(0,Math.min(3,DECK_SIZE-ids.length)),used));
   if(ids.length<DECK_SIZE)ids.push(...balancedPick(entities,DECK_SIZE-ids.length,used));
-  ids.push(...balancedPick(nonEntities,Math.max(0,Math.min(6,DECK_SIZE-ids.length)),used));
   if(ids.length<DECK_SIZE)ids.push(...balancedPick(usable,DECK_SIZE-ids.length,used));
   return ids.slice(0,DECK_SIZE);
 }

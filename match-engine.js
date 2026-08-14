@@ -847,8 +847,16 @@ export function completePlayerTurn(state){
    * always intended, moved to the seat that is actually behind: it used to be levied as
    * a *penalty* on the first seat's opening refresh, which left the human on 6 cards
    * against the rival's 7 and was justified in the docs by an on-the-play tempo edge
-   * that deployment fatigue had already removed. Measured on mirror decks, symmetric
-   * draws put the first seat at 62-72%; with this rule both seats land near 50%. */
+   * that deployment fatigue had already removed.
+   *
+   * Do not read this as "the seats are balanced". They are not. On mirror decks the
+   * first seat currently wins 72-81%, and sweeping this compensation card at 0, 1 and
+   * 2 moves that by less than the run-to-run noise -- it is close to inert. The bias
+   * tracks deck power, not the draw: with low-power decks the same measurement sits
+   * near 50%, and it climbs as average power climbs, because a high-power board makes
+   * whoever swings first decisive. Fixing it properly means revisiting combat, not
+   * the opening hand. The compensation stays because it is still the correct side to
+   * favour and it costs nothing; it is not a solution. */
   next.active='rival';next.turnCount+=1;
   refreshMutable(next,'rival',{drawCard:true,drawCount:DRAW_PER_REFRESH+(next.players.rival.turnNumber===0?1:0)});
   if(next.phase==='ended')return checkWinner(next);

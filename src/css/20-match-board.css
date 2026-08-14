@@ -6,7 +6,15 @@
    ========================================================================== */
 
 .matchScreen {
-  position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  position: relative; display: grid;
+  /* The explicit column is load-bearing. Without it the implicit `auto` column
+     sizes to the hand strip's max-content, so by round four a 15-card hand grew
+     the stage to 2,467px inside a 1,280px viewport — and because this element is
+     overflow:hidden with no document scrollbar, the Flank lane and the End Turn
+     button were simply unreachable. elementFromPoint returned null over the
+     button and the match could not be finished with a mouse. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%; min-height: 0; overflow: hidden;
   /* The play area is a pit; the bed sits in it and reads as an object. */
   background: var(--pit);

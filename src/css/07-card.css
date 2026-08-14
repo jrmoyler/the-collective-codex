@@ -201,8 +201,8 @@
   background-origin: content-box, border-box;
   background-clip: content-box, border-box;
   background-repeat: no-repeat, no-repeat;
-  /* Only the SAFE INTERIOR of each tile is shown: a 50x50 square taken at
-     offset (15, 13) inside the 80x80 tile.
+  /* Only the SAFE INTERIOR of each tile is shown: a 46x46 square taken at
+     offset (17, 8) inside the 80x80 tile.
 
      The atlas was cropped from generated card-interface mockups and the crops
      kept the mockups' own chrome — a cost badge in one top corner, a glyph in
@@ -211,15 +211,22 @@
      "MALGOR / Ender of Worlds", and an Operative reads "Jaxon Hale / Shadow
      Sniper / LV 40" — four pixels above the real nameplate, contradicting it.
      The atlas bytes are immutable here (its SHA-256 is a test contract), so the
-     window is narrowed instead. Verified across all 54 rows.
+     window is narrowed instead.
 
-     One tile is 80/50 = 1.6 windows wide, so:
-       background-size     = 21 * 1.6 S  x  54 * 1.6 S   = 33.6S x 86.4S
-       background-position = -(art * 1.6 + offset/50) * S                    */
-  background-size: calc(var(--art-size) * 33.6) calc(var(--art-size) * 86.4), auto;
+     The offsets are measured, not guessed. Scanning all 1,134 tiles for a
+     bottom band whose horizontal gradient energy is >= 2x the artwork above it:
+     the untouched tile leaks on 121 tiles, a (15,13)+50 window still leaked on
+     49, and this window leaks on 3 (0.26%) while pulling in no top-corner
+     chrome. Rows 35-41 -- the later Operative sets, Trap and Response -- are
+     the stubborn ones.
+
+     One tile is 80/46 = 1.7391 windows wide, so:
+       background-size     = 21 * 1.7391 S  x  54 * 1.7391 S
+       background-position = -(art * 1.7391 + offset/46) * S                  */
+  background-size: calc(var(--art-size) * 36.521739) calc(var(--art-size) * 93.913043), auto;
   background-position:
-    calc(var(--art-size) * (var(--art-x, 0) * -1.6 - 0.3))
-    calc(var(--art-size) * (var(--art-y, 0) * -1.6 - 0.26)),
+    calc(var(--art-size) * (var(--art-x, 0) * -1.7391304 - 0.3695652))
+    calc(var(--art-size) * (var(--art-y, 0) * -1.7391304 - 0.1739130)),
     0 0;
   box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
 }
