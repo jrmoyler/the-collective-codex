@@ -7,7 +7,7 @@
  */
 
 import { h, setText, setAttr, setClass, clear, delegate, pad2, settings, motionReduced, clamp } from './core.js';
-import { cardById, divisionById, FAMILY_MARK, makeTile, paintTile, cardLabel } from './cards.js';
+import { cardById, divisionById, FAMILY_MARK, makeTile, paintTile, cardLabel, hasNoEffect, NO_EFFECT_BADGE, NO_EFFECT_NOTE } from './cards.js';
 import { toast, announce, confirmDialog, openDialog } from './ui.js';
 import { termLink } from './terms.js';
 import { createMotion } from './motion.js';
@@ -27,7 +27,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   let laneCursor = 0;
   let region = 'hand';            // hand | lanes | log
   let lastEventSeq = 0;
-  let armed = false, armTimer = null, disarmTimer = null;
+  let armed = false, armTimer = null;
   let mulliganSel = new Set();
   let inspected = null;
   let endShown = false;
@@ -40,7 +40,9 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   const roundEl = h('b', { class: 'barRound' });
   const phaseEl = h('span', { class: 'barPhase' });
   const seedEl = h('button', { type: 'button', class: 'barSeed', dataset: { action: 'copySeed' }, title: 'Copy this match seed' });
-  const logToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleLog' }, 'aria-expanded': 'true', 'aria-controls': 'matchLog' }, 'Log');
+  // aria-expanded is read from the same persisted preference that mount() uses
+  // to collapse the log, so the two can never disagree.
+  const logToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleLog' }, 'aria-expanded': settings.get('logOpen') !== false ? 'true' : 'false', 'aria-controls': 'matchLog' }, 'Log');
   const motionToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleMotion' }, 'aria-pressed': 'false' }, 'Reduce motion');
 
   const skipHost = h('div', { class: 'skipHost' });
@@ -486,23 +488,32 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
   function disarm() {
     armed = false;
-    clearTimeout(disarmTimer);
     setText(endBtn, 'End turn');
     setClass(endBtn, 'armed', false);
   }
 
+  /* The armed state has NO timeout.
+   *
+   * It used to disarm itself after 3,000 ms. Reading three lanes of projected
+   * damage and deciding whether to commit takes longer than three seconds — and
+   * when it did, the player's Enter silently re-armed instead of ending the
+   * turn, so the deliberate two-step became a race. Nothing about a confirmation
+   * gets safer for expiring; the state is cleared when the player disarms it
+   * (Escape), acts on something else (picking a hand card, targeting a lane), or
+   * confirms. Those call sites already call disarm(). */
   function armEndTurn() {
     const { out, inc } = projection();
     armed = true;
     setText(endBtn, 'Confirm end turn ⏎');
     setClass(endBtn, 'armed', true);
     setText(endSummary, `3 lanes resolve · you project ${out} outgoing, ${inc} incoming`);
-    announce(`End turn armed. Three lanes resolve. You project ${out} damage out and ${inc} damage in. Press Enter to confirm.`);
+    announce(`End turn armed. Three lanes resolve. You project ${out} damage out and ${inc} damage in. Press Enter to confirm — it stays armed until you do.`);
+    // A short mis-click guard on the pointer target only: a double click on
+    // "End turn" must not sail through the confirmation. The keyboard path does
+    // not consult endBtn.disabled, so this never delays a deliberate ⏎.
     endBtn.disabled = true;
     clearTimeout(armTimer);
     armTimer = setTimeout(() => { endBtn.disabled = false; }, 400);
-    clearTimeout(disarmTimer);
-    disarmTimer = setTimeout(() => { disarm(); paint(); }, 3000);
   }
 
   function doEndTurn() {
@@ -662,6 +673,8 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         body.append(
           h('span', { class: 'inspectDiv' }, `${d.icon} ${pad2(d.id)} ${d.name} · ${FAMILY_MARK[card.family] || '✦'} ${card.family}`),
           h('h2', { class: 'inspectName', tabindex: '-1' }, card.name),
+          // Before the rules text, which is what misleads on these families.
+          hasNoEffect(card) ? h('p', { class: 'inspectBlank' }, h('strong', {}, NO_EFFECT_BADGE), ' — ', NO_EFFECT_NOTE) : null,
           h('p', { class: 'inspectRules' }, card.rulesText),
           h('dl', { class: 'inspectSpecs' },
             h('div', {}, h('dt', {}, 'Cost'), h('dd', {}, `${card.cost.command}C · ${card.cost.insight}I · ${card.cost.essence}E`)),
@@ -761,7 +774,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     if (isTyping() || ev.metaKey || ev.ctrlKey || ev.altKey) return;
     if (!match) return;
     const key = ev.key;
-    if (key !== 'Tab') settings.set('usedKeyboard', true);
+    // Latch once. settings.set is already a no-op for an unchanged value, but
+    // reading a boolean is cheaper than the write path deciding not to run, and
+    // this makes the "write once, then never again" intent explicit at the site
+    // that fires on literally every keypress of a match.
+    if (key !== 'Tab' && !settings.get('usedKeyboard')) settings.set('usedKeyboard', true);
 
     if (key === 'Escape') {
       if (!inspectorPanel.el.hidden) { ev.preventDefault(); inspectorPanel.hide(); return; }
@@ -930,7 +947,15 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
   return {
     el,
-    mount() { if (!settings.get('logOpen')) el.classList.add('logClosed'); },
+    mount() {
+      // The toggle's markup and the persisted preference are applied in one
+      // place. They used to disagree on load: the button was hard-coded to
+      // aria-expanded="true" while a stored `logOpen: false` collapsed the log,
+      // so a screen reader announced an expanded log that was not on screen.
+      const open = settings.get('logOpen') !== false;
+      setClass(el, 'logClosed', !open);
+      setAttr(logToggle, 'aria-expanded', open ? 'true' : 'false');
+    },
     setMatch(next) {
       match = next; handIndex = null; laneCursor = 0; mulliganSel = new Set();
       lastEventSeq = 0; renderedLogSeq = 0; endShown = false; handAge = new Map(); lastRound = 0;

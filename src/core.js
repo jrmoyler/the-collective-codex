@@ -12,7 +12,9 @@ export function h(tag, props, ...kids) {
     if (v === null || v === undefined || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k === 'text') el.textContent = v;
-    else if (k === 'html') el.innerHTML = v;
+    // There is deliberately no `html:` escape hatch. Nothing in this app needs
+    // one, and not having it means the bundle contains no innerHTML write at
+    // all — the whole injection class is structurally absent, not merely unused.
     // Custom properties are invisible to Object.assign — CSSStyleDeclaration only
     // exposes them through setProperty, so `--x` keys are silently dropped otherwise.
     else if (k === 'style' && typeof v === 'object') for (const s in v) { if (v[s] == null) continue; if (s.startsWith('--')) el.style.setProperty(s, String(v[s])); else el.style[s] = v[s]; }
@@ -71,14 +73,19 @@ export function svg(tag, props) {
 /* ---------- Delegated events (PF-8) ----------
    One listener per root per event type. Handlers are keyed by data-action. */
 
+/** The lookup goes through a Map, never a plain object: `data-action` is
+ *  attacker-controllable markup, and an object lookup would resolve
+ *  "constructor" / "toString" / "__proto__" to Object.prototype members and
+ *  call them. A Map only ever contains what was registered here. */
 export function delegate(root, type, handlers, opts) {
+  const table = handlers instanceof Map ? handlers : new Map(Object.entries(handlers));
   root.addEventListener(type, (ev) => {
     const start = ev.target instanceof Element ? ev.target : null;
     if (!start) return;
     const el = start.closest('[data-action]');
     if (!el || !root.contains(el)) return;
-    const fn = handlers[el.dataset.action];
-    if (fn) fn(el, ev);
+    const fn = table.get(el.dataset.action);
+    if (typeof fn === 'function') fn(el, ev);
   }, opts);
   return root;
 }
@@ -95,30 +102,22 @@ export function on(root, type, selector, fn, opts) {
 
 /* ---------- Store ---------- */
 
+/** A shared, mutable bag of screen state.
+ *
+ *  There is deliberately no subscribe/notify machinery: every screen in this app
+ *  patches its own DOM directly from its own event handlers, so a pub/sub layer
+ *  had no subscribers and only made the update order harder to follow. If a
+ *  screen ever needs to react to another screen's writes, add a real observer
+ *  then — a half-wired one that nobody calls is worse than none. */
 export function createStore(initial) {
   const state = { ...initial };
-  const subs = new Set();
-  let queued = null;
-  function flush() {
-    const changed = queued; queued = null;
-    for (const fn of subs) { try { fn(changed, state); } catch (err) { console.error('[store] subscriber failed', err); } }
-  }
   return {
     state,
-    /** Merge a patch. Subscribers receive the Set of changed top-level keys.
-     *  Notification is synchronous-but-coalesced within a microtask. */
+    /** Merge a patch of top-level keys. Returns the state for chaining. */
     set(patch) {
-      const changed = queued || new Set();
-      for (const k in patch) {
-        if (state[k] !== patch[k]) { state[k] = patch[k]; changed.add(k); }
-        else changed.add(k); // allow forced signals for mutable containers (Set/Map/match)
-      }
-      if (!queued) { queued = changed; queueMicrotask(flush); }
+      for (const k in patch) state[k] = patch[k];
       return state;
     },
-    /** Signal that a mutable container changed without replacing it. */
-    touch(...keys) { this.set(Object.fromEntries(keys.map(k => [k, state[k]]))); },
-    sub(fn) { subs.add(fn); return () => subs.delete(fn); },
   };
 }
 
@@ -138,7 +137,7 @@ export function rafThrottle(fn) {
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function focusables(root) {
+function focusables(root) {
   return $$(FOCUSABLE, root).filter(el => el.offsetParent !== null || el === document.activeElement);
 }
 
@@ -186,7 +185,13 @@ export const settings = (() => {
   return {
     get(key) { return value[key]; },
     all() { return { ...value }; },
+    /** Writing the same value again is a no-op. A synchronous localStorage write
+     *  plus applyMotion() (which rewrites a <html> dataset attribute and a
+     *  custom property, invalidating style for the whole document) is far too
+     *  expensive to run per keystroke, which is what unguarded flag-setting
+     *  call sites were doing. */
     set(key, v) {
+      if (Object.is(value[key], v)) return v;
       value[key] = v;
       try { storage?.setItem(SETTINGS_KEY, JSON.stringify(value)); } catch { /* private mode */ }
       applyMotion();
@@ -225,6 +230,12 @@ export const router = (() => {
   const listeners = new Set();
   let current = { view: 'home', id: null, query: {} };
 
+  /** Total: a hash is user input and may be anything, including a malformed
+   *  percent escape (`%E0%A4%A`), which makes decodeURIComponent throw. */
+  function decodeSegment(seg) {
+    try { return decodeURIComponent(seg); } catch { return seg; }
+  }
+
   function parse(hash = location.hash) {
     const raw = String(hash || '').replace(/^#/, '');
     const [pathPart, queryPart] = raw.split('?');
@@ -232,7 +243,7 @@ export const router = (() => {
     const query = {};
     if (queryPart) for (const [k, v] of new URLSearchParams(queryPart)) query[k] = v;
     const view = segs[0] || 'home';
-    return { view, id: segs[1] ? decodeURIComponent(segs[1]) : null, query };
+    return { view, id: segs[1] ? decodeSegment(segs[1]) : null, query };
   }
 
   function serialize({ view, id, query }) {
@@ -248,8 +259,28 @@ export const router = (() => {
     return q ? `${path}?${q}` : path;
   }
 
-  function emit() {
-    current = parse();
+  /** A canonical, order-independent string for a route's query. Two routes with
+   *  the same params in a different order are the same route. */
+  function queryKey(query) {
+    const params = new URLSearchParams();
+    for (const k of Object.keys(query || {}).sort()) params.set(k, query[k]);
+    return params.toString();
+  }
+
+  const sameRoute = (a, b) => a.view === b.view && a.id === b.id && queryKey(a.query) === queryKey(b.query);
+
+  /** Idempotent by design.
+   *
+   *  Chromium fires BOTH `hashchange` and `popstate` for a same-document
+   *  fragment navigation, so a single Back press used to run every listener
+   *  twice — two full passes over the 1,134-card canon on #/codex, and two
+   *  identical live-region announcements to a screen reader. Dropping one of
+   *  the listeners would make correctness depend on which browser you are in;
+   *  comparing the parsed route instead does not. */
+  function emit(force = false) {
+    const next = parse();
+    if (!force && sameRoute(current, next)) return;
+    current = next;
     for (const fn of listeners) { try { fn(current); } catch (err) { console.error('[router]', err); } }
   }
 
@@ -273,9 +304,11 @@ export const router = (() => {
     },
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     start() {
-      addEventListener('hashchange', emit);
-      addEventListener('popstate', emit);
-      emit();
+      // Both listeners stay registered — between them they cover every browser.
+      // emit() de-duplicates, so the double delivery costs one route parse.
+      addEventListener('hashchange', () => emit());
+      addEventListener('popstate', () => emit());
+      emit(true);   // the boot route must render even though `current` matches it
     },
   };
 })();
@@ -284,4 +317,3 @@ export const router = (() => {
 
 export const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 export const pad2 = n => String(n).padStart(2, '0');
-export const idle = fn => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 500 }) : setTimeout(fn, 1));

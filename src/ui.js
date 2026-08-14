@@ -13,6 +13,18 @@ export function mountUI(root) {
   politeRegion = h('div', { class: 'srOnly', id: 'livePolite', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' });
   assertiveRegion = h('div', { class: 'srOnly', id: 'liveAssertive', role: 'alert', 'aria-live': 'assertive', 'aria-atomic': 'true' });
   root.append(toastHost, dialogHost, popoverHost, politeRegion, assertiveRegion);
+
+  // ONE Escape handler, owned by the dialog layer, for the lifetime of the app.
+  // It used to be attached to each dialog's own panel node, which meant Escape
+  // stopped working the moment focus was anywhere else in the document — and a
+  // dialog whose Escape does not work is a dialog you cannot get out of.
+  // Capture, because a modal outranks every screen-level shortcut beneath it.
+  document.addEventListener('keydown', (ev) => {
+    if (!openDialogRelease || ev.key !== 'Escape') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    closeDialog(false);
+  }, true);
 }
 
 /* ---------- Live regions (AX-6) ---------- */
@@ -65,6 +77,17 @@ export function toast(message, { undo = null, undoLabel = 'Undo', kind = 'info',
 
 let openDialogRelease = null;
 
+/**
+ * The single owner of dialog teardown. Every route change calls this (see the
+ * router subscription in app.js), because a dialog's lifetime is bounded by the
+ * screen that opened it.
+ *
+ * It was not, and the failure was total: opening the pre-match dialog and
+ * pressing browser Back left the panel painted and the scrim swallowing every
+ * click, on whatever screen you had navigated to. Nothing recovered it —
+ * `dialogHost` was only ever emptied from here, and nothing else called here.
+ * A modal that outlives its screen is not a modal, it is a dead page.
+ */
 export function closeDialog(result) {
   if (!openDialogRelease) return;
   const { release, resolve } = openDialogRelease;
@@ -105,7 +128,7 @@ export function openDialog(build) {
     clear(dialogHost);
     dialogHost.append(h('div', { class: 'dialogScrim', onclick: () => close(false) }), node);
     document.body.classList.add('hasDialog');
-    node.addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.stopPropagation(); close(false); } });
+    // Escape is handled once, at the dialog layer, by mountUI — never per panel.
     const release = trapFocus(node, { initial });
     openDialogRelease = { release, resolve };
   });

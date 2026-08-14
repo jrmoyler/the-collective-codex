@@ -2,11 +2,10 @@
    Shows what the player is about to face, lets them pick a difficulty tier and
    replay a shared seed code, and states the rules that decide the first turn. */
 
-import { h, setText, clear, settings, pad2 } from './core.js';
+import { h, settings } from './core.js';
 import { openDialog, toast } from './ui.js';
 import { termLink } from './terms.js';
-import { divisionById, totalCost } from './cards.js';
-import { deckProfile, castableTurn } from '../deck-store.js';
+import { deckProfile } from '../deck-store.js';
 import * as engine from '../match-engine.js';
 
 const TIERS = [

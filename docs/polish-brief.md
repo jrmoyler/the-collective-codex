@@ -1021,7 +1021,7 @@ and a mid-range Android phone. Network: Fast 3G for load metrics.
 
 | Metric | Budget | Notes |
 | --- | --- | --- |
-| HTML + CSS + JS transfer | **≤ 70 KB gzip** | Currently ~66 KB uncompressed; headroom exists |
+| HTML + CSS + JS transfer | **≤ 70 KB gzip** — currently **over budget by ~36%** | Measured, not estimated: **95.0 KB gzip / 303 KB raw** (JS 78.1, CSS 15.8, HTML 1.0 gzip). The old "~66 KB uncompressed" figure was wrong in both the number and the unit, and it is what hid the overrun. There is no headroom: `match-engine.js` and `src/screen-match.js` are over half the JS between them. Re-measure with the command below after any change that adds a module — the number moves. |
 | Fonts | **≤ 60 KB total**, 2 files, preloaded | Replaces the blocking Google `@import` (A-33) |
 | First Contentful Paint | **≤ 1.0 s** | Must not wait on the atlas |
 | Largest Contentful Paint | **≤ 1.8 s** | Atlas preloaded with `fetchpriority="high"` |
@@ -1036,6 +1036,24 @@ and a mid-range Android phone. Network: Fast 3G for load metrics.
 | DOM nodes, Codex | **≤ 2,500** at any moment | Currently 35,154 (A-2) |
 | JS heap after browsing 300 cards | **≤ 120 MB** | The decoded atlas alone is ~29 MB (A-32) |
 | Long tasks > 50 ms after load | **zero** during typing or scrolling | |
+
+Reproduce the transfer figure — it counts every file the browser actually requests for the app
+shell (fonts and the art atlas are budgeted separately, on their own rows):
+
+```sh
+npm run build
+cd dist && for f in index.html styles.css match.css ui.css \
+    app.js card-canon.js match-engine.js deck-store.js src/*.js; do
+  printf '%-24s raw %7d  gzip %6d\n' "$f" "$(wc -c < "$f")" "$(gzip -9c "$f" | wc -c)"
+done
+```
+
+Two levers exist before anything is rewritten. **The JS ships its comments.**
+`scripts/build.mjs` strips block comments from the CSS (worth ~12.3 KB gzip) but copies the JS
+verbatim, and these modules carry their rationale inline by design — the same treatment for the
+JS copy list would be the single largest reduction available, and would cost nothing readable
+since `src/` stays the source. **And the whole canon is eagerly loaded**: `card-canon.js`
+generates all 1,134 cards at module load for every route, including `#/`.
 
 ### 7.1 Strategy for 1,134 cards
 

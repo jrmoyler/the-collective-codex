@@ -7,7 +7,7 @@ Everything here is reproducible: the same two decks, the same seed and the same 
 ## Match setup
 
 - **Deck size:** 30 unique, PvP-legal cards.
-- **Starter doctrine:** 18 entity cards and 12 non-entity cards, selected deterministically across available divisions with a bias toward lower total costs. It exists only as a jump-start deck; it receives no statistical advantage.
+- **Starter doctrine:** 18 entity cards and 12 non-entity cards, selected deterministically across available divisions with a bias toward lower total costs. The engine grants it no special treatment — but the bias toward low cost is itself an advantage, because in the current canon a card's cost says nothing about its power. The starter deck averages 1.10 total cost against 7.17 power while the drafted rival deck, which is built to *mirror* the opponent's cost and power profile, averages 1.97 for the same power. Against that rival the first seat wins about 57% at sovereign, versus about 49% on a true mirror. The gap is a deck-construction artefact, not a rules one; see the note under [Resource curve](#resource-curve).
 - **Persistence:** the active deck, including an in-progress edit shorter than 30 cards, is stored in `localStorage` under `collectiveCodex.activeDeck.v1`.
 - **Core:** each side begins at 20.
 - **Opening hand:** each side draws 5 cards.
@@ -42,11 +42,17 @@ Essence = min(4, 1 + ceil(t / 2))
 
 Turn 1 therefore still begins at **2 Command / 2 Insight / 2 Essence**, but the three pools separate immediately and are fully ramped by turn 5. This paced, staggered opening keeps the 20-Core game from becoming a five-card opening-hand dump, and it makes Essence-heavy cards genuinely late-game while Command-heavy cards stay available early.
 
-Pools do not carry over between turns; they are overwritten by the refill. A functioning Base may generate one additional dominant-cost resource on refresh, up to the engine's hard resource ceiling of 10, which bounds card-generated resources only.
+Pools do not carry over between turns; they are overwritten by the refill. The single exception is a resource a hostile Virus delayed to the end step, which is carried across the next refill so that a delay is a delay and not a confiscation (see the Virus row of the family table). A functioning Base may generate one additional dominant-cost resource on refresh, up to the engine's hard resource ceiling of 10, which bounds card-generated resources only.
+
+> **The curve is currently slack, and the engine cannot fix that alone.** Over 500 simulated sovereign matches players spend under a third of what the curve grants, and turns end with an empty hand far more often than with an empty pool: the match is draw-limited, not resource-limited. The cause is upstream of these rules. Card cost and card power in the canon are derived independently, so cost carries no information about strength, and the deck builder consequently drafts strictly cheapest-first — the shipped 30-card starter deck averages **1.10 total cost** against an average power of 7.17, and every card in the canon is affordable by turn 3. No curve that still lets the canon's 9-cost cards be cast can bind a deck that costs 1.1 a card. The staggered curve, `RESOURCE_CAPS` and the deck builder's cost filter are correct machinery for a constraint that a cost-correlated canon would restore.
 
 ### Card draw
 
-Each refresh draws **2** cards. The one exception is standard on-the-play compensation: the player, who takes the first turn, draws **1** on their opening refresh. A kept opening hand is therefore 5 + 1 = 6 cards when the first main phase begins, and the rival's hand is 5 + 2 = 7 when its first main phase begins.
+Each refresh draws **2** cards, on both sides, including the opening refresh. A kept opening hand is therefore 5 + 2 = 7 cards when the first main phase begins.
+
+**On the draw.** Acting second is a real disadvantage: in the round that reaches lethal, the side that acts first swings first. The side on the draw — the rival seat, which acts second — therefore draws **one extra card at its first refresh**, and its first main phase begins on 5 + 3 = 8 cards. This is the only asymmetry between the two seats, it is about seat order rather than about who is human, and it is paid once.
+
+> This corrects an earlier rule that levied the same one-card difference as a *penalty on the first seat* — the player used to draw 1 on their opening refresh — justified as "on-the-play compensation". Deployment fatigue had already removed the on-the-play tempo advantage that penalty was paying for, so the first seat paid a tax and received no tempo. Measured on mirror decks, the correction is worth 10–15 percentage points to the first seat.
 
 Weapon and Magician triggers draw outside this schedule; they are described in the family table.
 
@@ -62,15 +68,32 @@ Combat resolves all three lanes automatically, in Vanguard → Conduit → Flank
 
 **A unit arrives exhausted.** It cannot attack on the turn it is played and becomes ready at its controller's next refresh. It defends normally from the moment it arrives, and it can still be buffed, moved or destroyed. Without this rule the match was a first-strike race decided in about two rounds.
 
-### Core armour
+### Held exhausted
+
+Some cards exhaust a unit that is *already* exhausted — a Trap sprung on an arriving entity, a Disaster survivor. Because exhaustion clears at the victim's own refresh, and that refresh always precedes the victim's next combat, plain exhaustion applied by an opponent could never cost anyone an attack. It does now:
+
+**A unit that is *held* exhausted stays exhausted through exactly one of its own refreshes.** It misses one attack step, defends normally throughout, and readies at the refresh after that. The lost turn is announced in the log so it is never silent.
+
+### Core armour and the lane breach ceiling
 
 Combat damage aimed at a Core is scaled down before it lands:
 
 ```text
-reaching_core = min( ceil(raw / 4), 3 )
+reaching_core = min( ceil(raw / 5), lane breach ceiling )
 ```
 
-An unblocked Flying strike **pierces one step** of that armour: it divides by 3 instead of 4 and its ceiling is 4 instead of 3. So a 12-power ground swing lands 3, while a 12-power unblocked air swing lands 4.
+**The ceiling is a property of the lane being attacked, not a constant.**
+
+| Lane the attack is resolving into | Ceiling |
+| --- | --- |
+| No living defender — an open lane, or an air strike into an empty lane | **none**; only the divisor applies |
+| A living defender is present (a contested lane, or an air strike over ground units) | 3, or 4 for an unblocked Flying strike |
+
+An unblocked Flying strike **pierces one step** of the divisor: it divides by 4 instead of 5. So a 15-power ground swing into a defended lane lands 3, a 15-power unblocked air swing over defenders lands 4, and a 15-power ground swing into a lane nobody is holding lands 3 — while a 40-power swing into that same open lane lands 8 rather than being truncated to 3.
+
+This is what makes lane assignment a decision. When the ceiling was a flat 3 everywhere, a lane defended by nothing and a lane defended by 20 power both yielded at most 3 Core, so the marginal value of defending anything was at most 3 and committing everything to one lane while abandoning two cost almost nothing. In a controlled test — identical card choices, only the lane policy varying, 800 matches per policy against sovereign — spreading, stacking, committing everything to one lane and choosing at random previously finished within **0.8 percentage points** of one another. They now span **9.9 points**. Leaving a lane empty is genuinely dangerous, and power above the old ceiling is no longer thrown away.
+
+The divisor moved from 4 to 5 at the same time. With the ceiling lifted off undefended lanes, the divisor became the only thing standing between a stacked lane and a Core, and at 4 the median match dropped to 6–7 rounds with roughly 30% of matches finishing inside 5. At 5 the median is 7–9 with about 20% short, which is where the game sat before. It is a pacing dial, and — unlike the old flat ceiling — it never destroys information: `ceil(raw / 5)` is strictly increasing in raw power, so more power on the board always means at least as much damage.
 
 Armour applies only to combat damage. `Monster` deployment damage and fatigue damage are literal canonical values and are not armoured.
 
@@ -84,16 +107,26 @@ At each refresh, every surviving friendly unit recovers up to **2** power toward
 
 ### Lane resolution
 
-- **Open lane:** non-exhausted attackers in a lane with no defenders sum their current total power (including any Weapon bonus on a first attack) into one **raw** strike at the opposing Core. Core armour then decides how much of it lands.
+- **Open lane:** non-exhausted attackers in a lane with no defenders sum their current total power (including any Weapon bonus on a first attack) into one **raw** strike at the opposing Core. The armour divisor decides how much of it lands; there is no ceiling on an undefended lane.
 - **Contested lane:** attackers and defenders are paired deterministically by combat power, Guards defending first. Damage is simultaneous. Current power serves as both attack value and remaining combat durability for this local rules implementation. Attackers beyond the number of defenders deal no damage this combat, and defenders beyond the number of attackers take none.
-- **Broken lane:** if a contested lane's defenders are all destroyed, each surviving attacker that participated contributes 1 raw breakthrough damage. That total is armoured like any other combat damage.
+- **Broken lane:** if a contested lane's defenders are all destroyed, the attackers that participated and survived push their **remaining power** into the Core as one raw breakthrough strike, armoured and capped at 3 like any other contested lane. Previously a breakthrough was worth 1 raw per surviving body, which made winning a fight strictly worse than the enemy not showing up: three attackers that cleared a lane pushed 3 raw where the same three into an empty lane pushed their whole power. Killing the defenders is now rewarded, and still costs the attackers the damage they took doing it.
 - **Guard:** a Guard unit is prioritized as a defender, and the first combat damage dealt to an allied unit in that lane is reduced by 1 that combat, once per side.
 - **Flying:** a Flying attacker bypasses ground defenders and strikes the Core if the lane contains neither an opposing Flying unit nor Guard. Flying/Guard therefore provides deterministic interception. An unblocked air strike pierces one step of Core armour.
-- **Defense:** each active Defense in a lane prevents 2 Core damage from that lane per turn cycle, and multiple Defenses stack their prevention capacity. **Prevention applies after Core armour**, not before — the canon text prevents damage *dealt to your Core*, and armour has already decided how much that is. Because a ground breach is capped at 3, a single Defense fully absorbs any raw ground strike of 8 power or less.
+- **Defense:** each active Defense in a lane prevents 2 Core damage from that lane per turn cycle, and multiple Defenses stack their prevention capacity. **Prevention applies after Core armour**, not before — the canon text prevents damage *dealt to your Core*, and armour has already decided how much that is. A single Defense therefore fully absorbs a contested-lane breakthrough of up to 2 and any open-lane strike whose raw power the divisor reduces to 2 or less; beyond that, an undefended lane can now out-scale it, which is the point.
 - **Exhausted units:** do not attack until refreshed. Every unit is exhausted on the turn it arrives.
 - **Defeated units:** are removed from the lane and placed into discard.
 
+### Temporary buffs
+
+A temporary buff (Specimen's deploy adaptation, Item, Action, a Response copy) normally expires at its controller's end step. **A buff granted to a unit that could not attack that turn is instead held through one end step**, so it is still on the unit while the opponent attacks and is still there for that unit's own next attack.
+
+Without this rule, every Specimen deploy trigger was structurally dead: the Specimen arrives exhausted so it cannot attack with the +1, and the buff expired at its own controller's end step so it could not defend with it either. The trigger fired constantly and could never have mattered once.
+
+### End step
+
 The end step that follows combat expires temporary buffs, applies Plague, charges Rituals, flushes triggers a Virus delayed, and performs Warrior shifts.
+
+**The end step does not run once a Core has reached 0.** The match ends the moment the Core falls, the board is left exactly as it stood, and no further event is recorded — the match-end announcement is always the final entry in the log and the event stream.
 
 ### Deck-out fatigue
 
@@ -105,27 +138,27 @@ The engine reads the existing card fields (`cost`, `power`, `rulesText`, `keywor
 
 | Family / keyword | Local deterministic interpretation |
 | --- | --- |
-| Specimen | When deployed into a lane containing an enemy unit, gains +1 power until end of turn. |
+| Specimen | When deployed into a lane containing an enemy unit, gains +1 power. Because a unit arrives exhausted, a buff that expired at its controller's own end step could be used neither to attack nor to defend, so the +1 is **held through one end step**: the Specimen defends with it during the opponent's turn and attacks with it on its own next turn, then it expires. See [Temporary buffs](#temporary-buffs). |
 | Weapon | Attaches to the strongest friendly unit in the chosen lane. That unit's first attack each turn gains +2 power. If the equipped unit moved before that first attack, the trigger draws 1 card and then deterministically discards the highest-total-cost card in hand; cost ties resolve by card ID. |
 | Monster | On deployment, if its power exceeds every enemy unit already in that lane, deals 1 Core damage. That damage is not armoured, but Defense and a set Reaction still apply to it. |
 | Knight / Guard | Guard combat rule described above. |
 | Warrior | After surviving its attack, may shift once to an adjacent lane. The local engine performs the shift only when it improves lane balance and a legal slot exists. Moving clears Plague infection as written. |
 | Magician | On play, inspects the next two cards deterministically: keeps the first and puts the second on the bottom. |
 | Environment | While an Environment is active in a lane — either side's — the first card each side plays into that lane each turn costs 1 less of its highest non-zero resource cost. Ties resolve Command, then Insight, then Essence. |
-| Disaster | The source text gives no damage number. The minimum non-zero deterministic interpretation is used: 1 damage to the highest-power enemy in each lane, then exhaust each survivor hit. |
+| Disaster | The source text gives no damage number. The minimum non-zero deterministic interpretation is used: 1 damage to the highest-power enemy in each lane, then each survivor hit is **held exhausted** — it misses one attack step rather than being handed an exhaustion its own next refresh would clear before it could ever have attacked. |
 | Defense | Prevents 2 Core damage from its lane per turn cycle, **after** Core armour has been applied. Multiple Defenses stack their prevention capacity. |
 | Base | At refresh, generates 1 resource matching the dominant summed cost among the other friendly cards in its lane. Ties resolve Command, Insight, then Essence. Subject to Law and to an enemy Virus. |
-| Item | Gives the strongest friendly unit in the lane +1 power until end of turn. The division keyword is recorded, but no undefined numeric keyword effect is invented. |
+| Item | Gives a friendly unit in the lane +1 power until end of turn. The target is the strongest unit **that can still act**, falling back to the strongest unit overall when the whole lane is exhausted. Previously the bonus went to the strongest unit unconditionally, which routinely meant a unit deployed that turn and therefore unable to attack with it. The division keyword is recorded, but no undefined numeric keyword effect is invented. |
 | Operative | Records the named division keyword trigger. If the keyword has no canonical numeric definition, no additional statistic is fabricated. |
-| Action | Gives the strongest friendly unit in the chosen lane +2 power until end of turn. The reposition clause uses the same legal lane-shift model when applicable. |
-| Trap | Installed face down. The next enemy entity entering that lane has its on-deploy trigger suppressed and is held exhausted; the Trap is consumed. Under deployment fatigue the arriving unit was exhausted anyway, so trigger suppression is the operative half of the effect. Rival Trap identity remains hidden in the UI until used. |
+| Action | Gives a friendly unit in the chosen lane +2 power until end of turn, choosing the strongest unit that can still act (as Item). The reposition clause uses the same legal lane-shift model when applicable. |
+| Trap | Installed face down. The next enemy entity entering that lane is **held exhausted** — it stays exhausted through its own next refresh, so it loses an attack step — and has its **next triggered ability** suppressed; the Trap is consumed. A unit's triggered abilities here are its on-deploy family rule, a Deity conversion, an Android automation, a Warrior shift and a Weapon attack trigger, so the suppression is real even against the seven entity families that have no on-deploy rule. Rival Trap identity remains hidden in the UI until used. |
 | Reaction | A set local Reaction reduces the next numeric effect damage by 1 and grants 1 Insight, then is consumed. This is used for effect-tagged damage such as Monster deployment damage, not normal combat. |
 | Response | Set as a support. When its controller next resolves a card in that lane, the Response copies that card's numeric non-damage trigger at **half value, rounded down**, and is discarded. Only Action (+2 → +1 power) and Weapon (+2 → +1 first-attack bonus) carry a value that survives halving; against anything else the Response stays set and waits. |
 | Law | Global, and it counts while **either** side controls one. Each side may then trigger each repeated ability only **once per turn**: one Base refresh generation, one Weapon attack trigger, one Ritual charge. Further triggers of the same name that turn are suppressed and logged. Defense prevention is a static replacement effect, not a repeated triggered ability, so it is not limited. |
 | Spell | Chooses one target — the strongest opposing unit in its lane, otherwise the strongest friendly unit there. Both canonical keyword applications therefore land on the same card, which satisfies the printed "if both applications affect the same card, gain 1 Insight", so the controller gains 1 Insight. The keyword applications themselves remain numeric-free. With no legal target in that lane, nothing is gained. |
-| Hex | Attaches to an opposing unit reference for the existing activated-ability surcharge rule. The current local UI exposes no generic activated-ability button, so no unrelated cost is invented. |
+| Hex | **Deliberately inert.** Its text surcharges an opposing card's *first activated ability each turn*, and this engine has no activated abilities for it to surcharge — nothing a player may choose to pay for at will. It attaches to an opposing unit reference and changes nothing else. Because it is inert, the rival AI does not value it and will not spend a card on it; see [Families that are still deliberately inert](#families-that-are-still-deliberately-inert). |
 | Plague | Current enemy units in the lane become infected. At each end step an infected unit loses 1 power **permanently** — its base power drops too, so regroup can never restore it. A unit that changed lanes clears the infection instead. |
-| Virus | Persistent system threat. While an opposing Virus is active, the **first** automated refresh trigger that side would take — a Base generation or an Android automation — is delayed and resolves at that side's end step instead. One trigger per refresh is delayed. Combat-time triggers are unchanged; the engine has no stack to delay them onto. |
+| Virus | Persistent system threat. While an opposing Virus is active, the **first** automated refresh trigger that side would take — a Base generation or an Android automation — is delayed and resolves at that side's end step instead. One trigger per refresh is delayed. A resource granted by a delayed Base is **carried across the next refill** rather than being wiped by it: pools do not otherwise carry over, so without this the "delay" was a permanent confiscation — the resource arrived when nothing could be bought and was destroyed before the next main phase, which is strictly harsher than the printed text. The cost of a Virus is therefore one turn of tempo on that trigger, not the trigger itself. Combat-time triggers are unchanged; the engine has no stack to delay them onto. |
 | Dragon / Flying | Flying combat rule applies. On deployment, opposing Defense and Base infrastructure in the chosen lane is disabled; it comes back online at its owner's refresh in a later round, so the owner loses one full cycle of that infrastructure. |
 | Deity | Unique entity. At refresh, once per Deity, it converts 1 resource from its controller's largest pool into its smallest, but only when the gap is at least 2 — otherwise the conversion is pointless and is skipped. Ties for the largest pool resolve Command, Insight, Essence; ties for the smallest resolve in the reverse order. The **third** conversion permanently empowers the Deity by +2 power, base power included. The choice is deterministic; no number is invented. |
 | Android | Entity with automation metadata. At refresh, an Android that has already changed lanes repeats that same directional move — once per refresh — provided the destination lane is on the board and has a free unit slot. Repeating counts as moving, so it also clears infection. An Android that has never moved does nothing. |
@@ -136,17 +169,21 @@ The engine reads the existing card fields (`cost`, `power`, `rulesText`, `keywor
 
 ### Families that are still deliberately inert
 
-Four families — **Operative**, **God**, **Ruler** and **World** — still change nothing when they resolve, and that is a decision rather than an omission. Their canonical text names an effect but supplies neither the number nor the choice needed to run it: Operative's division keyword trigger has no value, God's battlefield decree does not say which rule it writes, Ruler's mixed-resource activation is optional with no defined activation target, and World's global modifier is not quantified. Implementing them would mean inventing card text, which this engine does not do. The three entity families announce themselves in the log when they deploy so the flavour is visible; a World card simply sits on the battlefield as metadata and prints no note.
+Five families — **Operative**, **God**, **Ruler**, **World** and **Hex** — still change nothing when they resolve, and that is a decision rather than an omission. Their canonical text names an effect but supplies neither the number, the choice, nor the game surface needed to run it: Operative's division keyword trigger has no value, God's battlefield decree does not say which rule it writes, Ruler's mixed-resource activation is optional with no defined activation target, World's global modifier is not quantified, and Hex surcharges an activated ability in an engine that has none. Implementing them would mean inventing card text, which this engine does not do. The three entity families announce themselves in the log when they deploy so the flavour is visible; World and Hex sit on the battlefield as metadata.
+
+**Inert is a documented state, not a silent one.** The rival AI's evaluation deliberately assigns these families no value, so it will not spend a card to play one — an AI that paid a card for an effect that does nothing would be worse, not better. If a later canon revision gives any of them a number, they get an evaluation term at the same time.
 
 Every other family in the table now resolves to a real board effect. These remaining simplifications are intentionally conservative: they let existing deterministic numbers and targets function while leaving pure flavour and underspecified division-keyword semantics as visible canonical information.
 
 ## Rival doctrine
 
-The rival uses the exact same Core total, deck size, hand size, resource curve, draw schedule, deployment fatigue, Core armour, lane capacities, legal-play checks, combat engine, and card effects as the human player. There are no hidden stat or resource bonuses, and no tier is exempt from any of it.
+The rival uses the exact same Core total, deck size, resource curve, deployment fatigue, Core armour, lane capacities, legal-play checks, combat engine, and card effects as the human player. There are no hidden stat or resource bonuses, and no tier is exempt from any of it. The one difference is the on-the-draw card described under [Card draw](#card-draw), which belongs to the seat that acts second rather than to the rival as such — whoever sits there gets it.
 
-Its deck is drafted from the full canon to mirror the player's own deck profile — comparable entity count, average power, and average total cost — so a cheap aggressive doctrine is answered by a cheap aggressive doctrine rather than by a fixed list. The battlefield HUD's "Kinetic Edge · Terra Axis · Gaia Synthesis" line is doctrine flavour, not a restriction on the cards the rival may draft.
+Its deck is drafted from the full canon to mirror the player's own deck profile — comparable entity count, average power, and average total cost — so a cheap aggressive doctrine is answered by a cheap aggressive doctrine rather than by a fixed list. As noted under [Match setup](#match-setup), matching *cost* as well as power currently works against the rival, because cost and power are uncorrelated in the canon. The battlefield HUD's "Kinetic Edge · Terra Axis · Gaia Synthesis" line is doctrine flavour, not a restriction on the cards the rival may draft.
 
-During the main phase it scores legal plays using current card power, cost, lane pressure, open-Core opportunities, infrastructure needs, and whether a support has a legal friendly target. The scoring heuristic changes decisions, not rules.
+During the main phase it scores legal plays using current card power, lane pressure, open-Core opportunities, the standing value of its own and the opposing persistent supports, and whether a card has a legal target. The scoring heuristic changes decisions, not rules.
+
+**Supports are scored.** The evaluation previously counted only Core totals, unit power, lane threat and Defenses, which meant every non-combat card scored exactly zero and was never played — Traps, Bases, Rituals, Laws, Responses, Environments, Plagues and Viruses simply accumulated in hand for the whole match, including the ones in the rival's own starter deck. Each of those families now carries a value that depends on the board: a Trap is worth more against a full enemy hand, a Ritual more as its channel counters climb, a Plague in proportion to how many enemy units it infected, a Response only while an Action or Weapon is still in hand to copy. Families this engine leaves inert carry no value at all, so no tier will ever spend a card on one.
 
 ### Difficulty tiers
 
@@ -155,22 +192,28 @@ Three tiers are available, selected before the match and recorded in the seed co
 | | recruit | veteran | sovereign |
 | --- | --- | --- | --- |
 | Cards committed per main phase | up to 2 | up to 4 | up to 6 |
-| Position model | material only | material plus static lane-threat projection | material, threat, and full combat resolution of its own attack **and** the opponent's reply |
+| Position model | material only | material plus static lane-threat projection | material, threat, and full combat resolution of its own attack **and** the opponent's reply, resolved against a readied enemy board |
+| Values persistent supports | no | yes | yes, more highly |
 | Values Defense when its Core is low | no | mildly | strongly |
 | Detects lethal lines | no | yes | yes, weighted heavily |
-| Holds Traps, Disaster and Hex for value | no | no | yes |
+| Times Traps, Disaster, Plague and Reactions to the board | no | no | yes |
 | Mulligan | never | up to 2 cards costing 7 or more | up to 3 costing 6 or more, and dumps a hand with no entity in it |
 
 **What differs is search depth and evaluation weight — nothing else.** All three tiers see the same public battlefield, obey the same legality checks, pay the same costs, draw on the same schedule, and take the same damage. None of them peeks at the opponent's hand contents or at either deck's order; the only hidden-zone information any tier uses is the *number* of cards in a hand or deck, which is public in any card game. A higher tier does not get more resources, better cards, or a second look at the shuffle. It simply thinks further ahead before committing.
 
-The tiers are measurably ordered. Over 300 seeds per matchup, with each pairing played from both seats on mirrored decks:
+The tiers are measurably ordered. Over 500 seeds per matchup on mirrored decks, with every pairing played from **both** seats and the two results averaged — so the figure is the tier's strength, with the advantage of acting first cancelled out:
 
-| Matchup | Win rate |
-| --- | --- |
-| veteran over recruit | 62.5% |
-| sovereign over veteran | 54.7% |
+| Matchup | Win rate | Previously |
+| --- | --- | --- |
+| veteran over recruit | 67.6% | 66.4% |
+| sovereign over veteran | 56.0% | 53.3% |
+| sovereign over recruit | 71.6% | 67.4% |
 
-The gap narrows at the top, which is what a healthy ladder looks like: recruit loses to basic threat awareness, while sovereign has to earn its edge over veteran through lookahead.
+The gap narrows at the top, which is what a healthy ladder looks like: recruit loses to basic threat awareness, while sovereign has to earn its edge over veteran through lookahead and support play.
+
+### Where the seats stand
+
+On mirrored decks at equal difficulty, the side that acts first wins 44.8% at veteran and 48.6% at sovereign, so neither seat is meaningfully favoured. At recruit the first seat still wins about 55%, and the reason is recruit's own two-card play limit rather than the seat: a rival that can commit only two cards a turn cannot convert the compensating card into board presence, and re-running the same experiment with recruit allowed three cards a turn brings the mirror to 47% — at the cost of collapsing the veteran-over-recruit gap from 68% to 54%. The ladder is worth more than the last few points of a recruit-versus-recruit mirror that no human ever plays, so recruit keeps its limit.
 
 ## Match end and reset
 

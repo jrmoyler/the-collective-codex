@@ -31,7 +31,7 @@ export const GLOSSARY = [
   ['seam', 'The seam', 'The gold band across the middle of the board. It shows, per lane, the damage that will actually land in each direction if the turn ends right now — after Core armour and Defense prevention, not raw board power.'],
 ];
 
-export const glossaryByTerm = new Map(GLOSSARY.map(([key, title, body]) => [key, { key, title, body }]));
+const glossaryByTerm = new Map(GLOSSARY.map(([key, title, body]) => [key, { key, title, body }]));
 
 /** Term lookup that tolerates the on-screen casing/pluralisation. */
 export function lookupTerm(raw) {

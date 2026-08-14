@@ -4,15 +4,60 @@
    the search input is a stable node so the caret survives every keystroke (A-3). */
 
 import { h, setText, setAttr, setClass, clear, delegate, rafThrottle, rove, clamp, pad2 } from './core.js';
-import { divisions, families, cards, cardById, divisionById, queryCards, nearestByName, makeTile, paintTile, totalCost, FAMILY_MARK, RARITY_MARK, SORT_LABELS } from './cards.js';
+import { divisions, families, cards, cardById, divisionById, queryCards, nearestByName, makeTile, paintTile, totalCost, hasNoEffect, NO_EFFECT_BADGE, NO_EFFECT_NOTE, FAMILY_MARK, RARITY_MARK, SORT_LABELS } from './cards.js';
 import { toast, announce, hidePopover } from './ui.js';
 import { termLink } from './terms.js';
 
 const GAP = 14;
 const MIN_TILE = 176;
-const ROW_H = 286;
+/* The pitch the windowed grid reserves per row. It must be at least as tall as
+ * the tallest tile it can be asked to render, or rows overlap: the rows are
+ * absolutely positioned at `rowIndex * ROW_H`, while `.codexRow` itself is a
+ * fixed `--tile-h` (272px) whose grid items size to their content.
+ *
+ * A tile is 272–276px with a single-line contextual note. The 231 cards that
+ * carry the "no mechanical effect" disclosure reach 292px when they ALSO carry
+ * a note ("In doctrine"), because the note slot is then two lines. 300 leaves
+ * that case 8px of clearance. If the design layer ever gives the disclosure a
+ * treatment that costs no line, this can come back down to `--tile-h` + GAP. */
+const ROW_H = 300;
 const RARITIES = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
 const COSTS = [['all', 'Any cost'], ['0-3', '0–3 total'], ['4-6', '4–6 total'], ['7+', '7+ total']];
+
+/* ---------- IA-2: the URL is user input ----------
+   Anyone can type, bookmark or share `#/codex?d=NOPE`. Every value that comes
+   out of the query string is checked against the set it is allowed to belong to
+   before it reaches the store, so an unknown value degrades to "no filter"
+   rather than throwing halfway through the route handler and leaving the shell
+   (nav highlight, <title>, body[data-view]) pointing at the previous screen. */
+
+const FAMILY_VALUES = new Set(families);
+const RARITY_VALUES = new Set(RARITIES);
+const COST_VALUES = new Set(COSTS.map(([value]) => value));
+const SORT_VALUES = new Set(Object.keys(SORT_LABELS));
+
+function validDivision(raw) {
+  if (raw === null || raw === undefined || raw === 'all' || raw === '') return 'all';
+  const n = Number(raw);
+  return Number.isInteger(n) && divisionById.has(n) ? String(n) : 'all';
+}
+
+const oneOf = (raw, allowed, fallback) => (allowed.has(raw) ? raw : fallback);
+
+/** Query params → a store patch that is guaranteed to be renderable. */
+function normalizeQuery(query) {
+  const q = query || {};
+  return {
+    d: validDivision(q.d),
+    f: oneOf(q.f, FAMILY_VALUES, 'all'),
+    r: oneOf(q.r, RARITY_VALUES, 'all'),
+    c: oneOf(q.c, COST_VALUES, 'all'),
+    q: typeof q.q === 'string' ? q.q : '',
+    sort: oneOf(q.sort, SORT_VALUES, 'division'),
+  };
+}
+
+const sameQuery = (a, b) => a.d === b.d && a.f === b.f && a.r === b.r && a.c === b.c && a.q === b.q && a.sort === b.sort;
 
 export function createCodex({ store, router, deck }) {
   let results = cards;
@@ -108,7 +153,10 @@ export function createCodex({ store, router, deck }) {
     clear(chipsEl);
     const f = filters();
     const chips = [];
-    if (f.division !== 'all') chips.push(['d', `${divisionById.get(Number(f.division)).icon} ${divisionById.get(Number(f.division)).name}`]);
+    // Belt and braces: normalizeQuery already guarantees a real division, but a
+    // chip is not worth throwing the whole route handler for if that ever slips.
+    const d = divisionById.get(Number(f.division));
+    if (f.division !== 'all' && d) chips.push(['d', `${d.icon} ${d.name}`]);
     if (f.family !== 'all') chips.push(['f', `${FAMILY_MARK[f.family] || '✦'} ${f.family}`]);
     if (f.rarity !== 'all') chips.push(['r', `${RARITY_MARK[f.rarity]} ${f.rarity}`]);
     if (f.cost !== 'all') chips.push(['c', `Cost ${f.cost}`]);
@@ -126,7 +174,11 @@ export function createCodex({ store, router, deck }) {
     if (results.length) { emptyEl.hidden = true; clear(emptyEl); return; }
     emptyEl.hidden = false;
     clear(emptyEl);
-    const scope = [f.division !== 'all' ? divisionById.get(Number(f.division)).name : null, f.family !== 'all' ? f.family : null, f.rarity !== 'all' ? f.rarity : null].filter(Boolean).join(' · ');
+    const scope = [
+      f.division !== 'all' ? divisionById.get(Number(f.division))?.name : null,
+      f.family !== 'all' ? f.family : null,
+      f.rarity !== 'all' ? f.rarity : null,
+    ].filter(Boolean).join(' · ');
     emptyEl.append(
       h('p', { class: 'emptyLead' }, f.query ? `No cards match “${f.query}”` : 'No cards match these filters', scope ? ` in ${scope}.` : '.'),
       h('button', { type: 'button', class: 'btn', dataset: { action: 'clearFilter', key: 'ALL' } }, 'Clear all filters'),
@@ -226,8 +278,17 @@ export function createCodex({ store, router, deck }) {
 
   function recompute({ keepCursor = false } = {}) {
     results = queryCards(filters());
-    if (!keepCursor) cursor = 0;
-    else cursor = clamp(cursor, 0, Math.max(0, results.length - 1));
+    if (!keepCursor) {
+      cursor = 0;
+      // The result set just changed under the viewport. Resetting the cursor is
+      // not enough: the browser keeps the old scroll offset and merely clamps it
+      // to the new (much smaller) maximum, so narrowing 1,134 cards to 21 parks
+      // the reader at the bottom of the matches with the best ones off-screen
+      // above. Filtering always starts you at the first result.
+      scroller.scrollTop = 0;
+    } else {
+      cursor = clamp(cursor, 0, Math.max(0, results.length - 1));
+    }
     setText(countEl, `${results.length.toLocaleString()} card${results.length === 1 ? '' : 's'} visible`);
     renderChips();
     renderEmpty();
@@ -367,11 +428,27 @@ export function createCodex({ store, router, deck }) {
     },
     show(route, { focus = true } = {}) {
       el.hidden = false;
-      // Route query is authoritative on entry (IA-2).
-      const q = route.query || {};
-      store.set({ codex: { d: q.d || 'all', f: q.f || 'all', r: q.r || 'all', c: q.c || 'all', q: q.q || '', sort: q.sort || 'division' } });
-      syncControls();
-      measure(); ensurePool(); recompute({ keepCursor: true });
+      // Route query is authoritative on entry (IA-2) — after validation.
+      const q = normalizeQuery(route.query);
+      // Typing in the search field already applied the filter and recomputed
+      // before it rewrote the URL, and that URL rewrite lands back here. Without
+      // this guard every keystroke costs two full passes over the canon; the
+      // route-level guard in core.js cannot help, because the URL really did
+      // change. If the store already says what the URL says, there is nothing
+      // to do but repaint.
+      const stale = !sameQuery(store.state.codex, q);
+      const colsChanged = measure();
+      if (colsChanged) { pool.forEach(r => r.el.remove()); pool = []; poolCols = 0; }
+      ensurePool();
+      if (stale) {
+        store.set({ codex: q });
+        syncControls();
+        recompute({ keepCursor: true });
+      } else if (colsChanged) {
+        layout(); paint();
+      } else {
+        paint();
+      }
       if (route.id && cardById.has(route.id)) { if (detailCard?.id !== route.id) openCard(route.id, { push: false }); }
       else if (detailCard) { detailCard = null; detail.hide(); el.classList.remove('detailOpen'); paint(); }
       // Never steal focus on a self-initiated route change — the user may be typing.
@@ -462,6 +539,9 @@ function createDetailPanel({ onClose, onStep, deck }) {
       clear(behaviour);
       behaviour.append(
         h('h3', { class: 'detailSubhead' }, 'How this behaves in a match'),
+        // Stated before the family flavour text, not after it: on these 231
+        // cards the flavour text is what misleads.
+        hasNoEffect(c) ? h('p', { class: 'detailBlank' }, h('strong', {}, NO_EFFECT_BADGE), ' — ', NO_EFFECT_NOTE) : null,
         h('p', {}, matchBehaviour(c)),
         h('p', { class: 'detailFootnote' }, 'Full rules: ', termLink('power'), ' · ', termLink('lane'), ' · ', termLink('refresh')),
       );

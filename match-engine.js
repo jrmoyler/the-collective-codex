@@ -9,7 +9,12 @@ export const RESOURCE_CAPS={command:6,insight:5,essence:4};
 export const RESOURCE_CEILING=10;
 export const REGROUP_RECOVERY=2;
 export const DRAW_PER_REFRESH=2;
-export const CORE_ARMOUR_DIVISOR=4;
+/* The armour divisor is now the *only* dampener on an undefended lane (the breach ceiling
+ * below applies to contested lanes only), so it carries the pacing on its own. At 4 the
+ * median match fell to 7 rounds and 26% of matches ended inside 5; at 5 the median sits at
+ * 7-9 with 20% short, matching the pre-change pacing while keeping damage proportional to
+ * board power instead of truncating it. */
+export const CORE_ARMOUR_DIVISOR=5;
 export const FLYING_ARMOUR_PIERCE=1;
 export const MAX_LANE_BREACH=3;
 export const DIFFICULTY_TIERS=['recruit','veteran','sovereign'];
@@ -69,11 +74,15 @@ export function decodeSeed(text){
 function rng(seed){let x=(seed>>>0)||1;return()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return((x>>>0)%1000000)/1000000};}
 function shuffled(cards,seed){const out=[...cards],random=rng(seed);for(let i=out.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}return out;}
 function laneState(){return {units:[],supports:[]};}
-function participant(deck){return {core:STARTING_CORE,deck,hand:[],discard:[],resources:{command:0,insight:0,essence:0},lanes:[laneState(),laneState(),laneState()],mulliganUsed:false,turnNumber:0,lanePlays:[0,0,0],corePreventionUsed:[0,0,0],fatigue:0,repeatedUsed:{},delayed:[]};}
+function participant(deck){return {core:STARTING_CORE,deck,hand:[],discard:[],resources:{command:0,insight:0,essence:0},lanes:[laneState(),laneState(),laneState()],mulliganUsed:false,turnNumber:0,lanePlays:[0,0,0],corePreventionUsed:[0,0,0],fatigue:0,repeatedUsed:{},delayed:[],carry:{command:0,insight:0,essence:0}};}
 function sideStats(){return {coreDamageDealt:0,coreDamageTaken:0,damagePrevented:0,unitsDestroyed:0,unitsLost:0,cardsPlayed:0,cardsDrawn:0,cardsDiscarded:0,fatigueDamage:0,largestLaneSwing:0,resourcesSpent:{command:0,insight:0,essence:0,total:0}};}
 function addLog(state,message){state.log.unshift(message);state.log=state.log.slice(0,60);}
 function emit(state,type,fields={},text=''){
   if(state.quiet)return null;
+  /* `match-end` closes the stream. Nothing may be appended after it: the renderer
+   * animates `unit-destroyed` and friends, and a trailing death animation after the
+   * victory banner is a visible defect. See docs/engine-api.md §3.2. */
+  if(state.phase==='ended'&&type!=='match-end')return null;
   const event={seq:state.eventSeq+1,round:state.round,turn:state.turnCount,type,side:null,lane:null,cardId:null,uid:null,amount:null,...fields,text:String(text||'')};
   state.eventSeq=event.seq;state.events.push(event);
   if(event.text)addLog(state,event.text);
@@ -93,7 +102,7 @@ function draw(state,side,count=1,reason='turn'){
     dealCoreDamageMutable(state,side,p.fatigue,null,{source:'fatigue'});
   }
 }
-function discardCard(state,side,card,reason='effect'){const p=state.players[side];p.discard.push(card);state.stats[side].cardsDiscarded+=1;emit(state,'discard',{side,cardId:card.id,reason});}
+function discardCard(state,side,card,reason='effect'){const p=state.players[side];p.discard.push(card);if(state.phase==='ended')return;state.stats[side].cardsDiscarded+=1;emit(state,'discard',{side,cardId:card.id,reason});}
 function gainResource(state,side,resource,amount,source){
   if(amount<=0)return 0;
   const p=state.players[side],before=p.resources[resource];
@@ -102,10 +111,11 @@ function gainResource(state,side,resource,amount,source){
   if(gained>0)emit(state,'resource-gain',{side,resource,amount:gained,source},`${who(side)} ${source} generated ${gained} ${resource}.`);
   return gained;
 }
-function unitFor(state,card){state.uidCounter+=1;return {uid:`u${state.uidCounter}`,card,power:card.power,basePower:card.power,tempPower:0,exhausted:true,deployedTurn:state.turnCount,moved:false,triggerSuppressed:false,weaponBonus:0,weaponUsed:false,infected:false,conversions:0,convertedThisTurn:false,lastShift:0,automatedThisTurn:false};}
+function unitFor(state,card){state.uidCounter+=1;return {uid:`u${state.uidCounter}`,card,power:card.power,basePower:card.power,tempPower:0,tempHold:0,exhausted:true,stunned:false,stunSource:null,deployedTurn:state.turnCount,moved:false,triggerSuppressed:false,weaponBonus:0,weaponUsed:false,infected:false,conversions:0,convertedThisTurn:false,lastShift:0,automatedThisTurn:false};}
 function supportFor(state,card){state.uidCounter+=1;return {uid:`s${state.uidCounter}`,card,disabled:false,disabledUntilRound:0,counters:0,faceDown:card.family==='Trap'};}
 function strongest(units){return [...units].filter(alive).sort((a,b)=>b.power-a.power||cmp(a.uid,b.uid))[0]||null;}
 function pruneDead(state,side,laneIndex){
+  if(state.phase==='ended')return;
   const lane=state.players[side].lanes[laneIndex],dead=lane.units.filter(u=>!alive(u));
   if(!dead.length)return;
   for(const u of dead){
@@ -142,13 +152,20 @@ function lawBlocks(state,side,trigger,context={}){
   if(p.repeatedUsed[trigger]){emit(state,'law-restricted',{side,...context,trigger},`Law limited ${who(side)} repeated ${trigger} ability to one trigger this turn.`);return true;}
   p.repeatedUsed[trigger]=1;return false;
 }
-function dealCoreDamageMutable(state,defenderSide,amount,laneIndex,{effect=false,source='combat',pierce=0}={}){
+/* Core armour, in one place. `cap` is the lane breach ceiling and is a property of the
+ * lane being attacked, not a constant: an undefended lane has none (see armourBreach
+ * callers in resolveCombat / projectLaneDamage). */
+export function armourBreach(raw,{pierce=0,cap=MAX_LANE_BREACH}={}){
+  if(raw<=0)return 0;
+  const divisor=Math.max(1,CORE_ARMOUR_DIVISOR-pierce);
+  return Math.min(Math.ceil(raw/divisor),Math.max(0,cap));
+}
+function dealCoreDamageMutable(state,defenderSide,amount,laneIndex,{effect=false,source='combat',pierce=0,cap=null}={}){
   if(amount<=0||state.phase==='ended')return 0;
   const defender=state.players[defenderSide],lane=Number.isInteger(laneIndex)?defender.lanes[laneIndex]:null;
   let incoming=amount;
   if(source==='combat'){
-    const divisor=Math.max(1,CORE_ARMOUR_DIVISOR-pierce);
-    incoming=Math.min(Math.ceil(amount/divisor),MAX_LANE_BREACH+pierce);
+    incoming=armourBreach(amount,{pierce,cap:cap===null?MAX_LANE_BREACH+pierce:cap});
     const absorbed=amount-incoming;
     if(absorbed>0){state.stats[defenderSide].damagePrevented+=absorbed;emit(state,'damage-prevented',{side:defenderSide,lane:laneIndex??null,amount:absorbed,source:'Armour'});}
   }
@@ -176,6 +193,11 @@ function dealCoreDamageMutable(state,defenderSide,amount,laneIndex,{effect=false
       }
     }
   }
+  /* Clamp before the stats write, not after. Otherwise a 5-point hit on a 2-point Core
+   * reports 5 taken against a Core that only had 2 to lose, and the defeat screen shows
+   * `CORE 0 / CORE TAKEN 23`. `coreDamageTaken === STARTING_CORE - core` is a documented,
+   * test-enforced invariant. */
+  dealt=Math.min(dealt,defender.core);
   if(dealt>0){
     defender.core=Math.max(0,defender.core-dealt);
     state.stats[defenderSide].coreDamageTaken+=dealt;
@@ -232,8 +254,19 @@ function refreshMutable(state,side,{drawCard=true,drawCount=DRAW_PER_REFRESH}={}
   const p=state.players[side];
   p.turnNumber+=1;
   p.resources=resourceCurve(p.turnNumber);
+  /* A resource a Virus delayed to the end step is carried across the refill instead of
+   * being overwritten by it. Without this the "delay" was a permanent confiscation —
+   * strictly harsher than the card text. See docs/match-rules.md, Virus. */
+  for(const k of RESOURCE_KEYS)if(p.carry[k]){p.resources[k]=Math.min(RESOURCE_CEILING,p.resources[k]+p.carry[k]);p.carry[k]=0;}
   p.lanePlays=[0,0,0];p.corePreventionUsed=[0,0,0];p.repeatedUsed={};
-  for(const lane of p.lanes)for(const unit of lane.units){unit.exhausted=false;unit.moved=false;unit.weaponUsed=false;unit.triggerSuppressed=false;unit.convertedThisTurn=false;unit.automatedThisTurn=false;}
+  for(let laneIndex=0;laneIndex<3;laneIndex++)for(const unit of p.lanes[laneIndex].units){
+    unit.moved=false;unit.weaponUsed=false;unit.convertedThisTurn=false;unit.automatedThisTurn=false;
+    /* A stunned unit stays exhausted through exactly one of its own refreshes, so an
+     * opposing Trap or Disaster actually costs it an attack step. `triggerSuppressed`
+     * is deliberately NOT cleared here: it is consumed by the next trigger it blocks. */
+    if(unit.stunned){const source=unit.stunSource||'Trap';unit.stunned=false;unit.stunSource=null;emit(state,'keyword-note',{side,lane:laneIndex,uid:unit.uid,cardId:unit.card.id,keyword:'Exhausted',family:source},`${unit.card.name} was still exhausted and could not act this turn.`);}
+    else unit.exhausted=false;
+  }
   for(let laneIndex=0;laneIndex<3;laneIndex++)for(const unit of p.lanes[laneIndex].units){
     const restored=Math.min(REGROUP_RECOVERY,unit.basePower+unit.tempPower-unit.power);
     if(restored>0){unit.power+=restored;emit(state,'power-change',{side,lane:laneIndex,uid:unit.uid,cardId:unit.card.id,amount:restored,source:'regroup'});}
@@ -267,9 +300,20 @@ function refreshMutable(state,side,{drawCard=true,drawCount=DRAW_PER_REFRESH}={}
     }
   }
 }
+/* "…prevent its next triggered ability." A unit's triggered abilities in this engine are
+ * its on-deploy family rule (suppressed inline in triggerDeployMutable), the Deity
+ * conversion, the Android automation, the Warrior shift and the Weapon attack trigger.
+ * The flag is consumed by whichever fires first, so a Trap is never a no-op. */
+function suppressedTrigger(state,side,laneIndex,unit,trigger){
+  if(!unit.triggerSuppressed)return false;
+  unit.triggerSuppressed=false;
+  emit(state,'keyword-note',{side,lane:laneIndex,uid:unit.uid,cardId:unit.card.id,keyword:'Suppressed',family:'Trap',trigger},`A Trap suppressed ${unit.card.name}'s ${trigger} trigger.`);
+  return true;
+}
 function deityConvertMutable(state,side,laneIndex,unit){
   const p=state.players[side];
   if(unit.convertedThisTurn)return;
+  if(suppressedTrigger(state,side,laneIndex,unit,'Deity'))return;
   const order=RESOURCE_KEYS.slice().sort((a,b)=>p.resources[b]-p.resources[a]||RESOURCE_KEYS.indexOf(a)-RESOURCE_KEYS.indexOf(b));
   const from=order[0],to=order[order.length-1];
   if(p.resources[from]<1||p.resources[from]-p.resources[to]<2)return;
@@ -280,6 +324,7 @@ function deityConvertMutable(state,side,laneIndex,unit){
 function androidAutomateMutable(state,side,laneIndex,unit){
   const p=state.players[side],target=laneIndex+unit.lastShift;
   if(target<0||target>2||p.lanes[target].units.length>=MAX_UNITS_PER_LANE)return;
+  if(suppressedTrigger(state,side,laneIndex,unit,'Android'))return;
   p.lanes[laneIndex].units=p.lanes[laneIndex].units.filter(u=>u.uid!==unit.uid);
   unit.moved=true;unit.infected=false;p.lanes[target].units.push(unit);
   emit(state,'android-automate',{side,lane:laneIndex,toLane:target,uid:unit.uid,cardId:unit.card.id},`${unit.card.name} repeated its lane transfer into ${LANE_NAMES[target]}.`);
@@ -294,7 +339,12 @@ function flushDelayedMutable(state,side){
   const p=state.players[side];if(!p.delayed.length)return;
   const queue=p.delayed;p.delayed=[];
   for(const entry of queue){
-    if(entry.trigger==='Base')gainResource(state,side,entry.resource,entry.amount,'Base');
+    if(entry.trigger==='Base'){
+      const gained=gainResource(state,side,entry.resource,entry.amount,'Base');
+      /* Granted at the end step as the card text says, and carried across the next
+       * refill so the delay costs a turn of tempo rather than the resource itself. */
+      if(gained>0)p.carry[entry.resource]+=gained;
+    }
     else if(entry.trigger==='Android'){
       for(let l=0;l<3;l++){const unit=p.lanes[l].units.find(u=>u.uid===entry.uid);if(unit&&alive(unit))androidAutomateMutable(state,side,l,unit);}
     }
@@ -305,7 +355,11 @@ export function mulligan(state,side='player',indices=[]){
   if(state.phase!=='mulligan'||side!=='player'||state.players[side].mulliganUsed)throw new Error('Mulligan is no longer available.');
   const next=clone(state);performMulliganMutable(next,'player',indices);
   performMulliganMutable(next,'rival',aiMulliganIndices(next,'rival'));
-  next.phase='main';next.active='player';refreshMutable(next,'player',{drawCount:Math.max(0,DRAW_PER_REFRESH-1)});
+  /* Both seats draw DRAW_PER_REFRESH on every refresh, the opening one included.
+   * The old `DRAW_PER_REFRESH - 1` was "on-the-play compensation" for a tempo advantage
+   * that deployment fatigue (§4.2) had already removed — a turn-1 unit cannot attack
+   * until turn 2 from either seat — so the player paid the tax and got no tempo. */
+  next.phase='main';next.active='player';refreshMutable(next,'player',{drawCount:DRAW_PER_REFRESH});
   emit(next,'phase',{phase:'main',side:'player'},indices.length?`${actor('player')} replaced ${indices.length} opening card${indices.length===1?'':'s'}.`:'You kept your opening hand.');
   return next;
 }
@@ -341,12 +395,17 @@ function triggerDeployMutable(state,side,laneIndex,unit){
   if(trapIndex>=0){
     const [trap]=enemyLane.supports.splice(trapIndex,1);
     discardCard(state,enemySide,trap.card,'trap');
-    unit.exhausted=true;unit.triggerSuppressed=true;
-    emit(state,'trap-sprung',{side:enemySide,lane:laneIndex,cardId:trap.card.id,uid:unit.uid,targetCardId:card.id},`${who(enemySide)} Trap exhausted ${card.name} and suppressed its deploy trigger.`);
+    /* Under deployment fatigue every arriving unit is already exhausted, so setting the
+     * flag was a no-op its own next refresh would clear. The Trap now stuns it — it stays
+     * exhausted through one refresh, costing it an attack step — and arms
+     * `triggerSuppressed`, which is consumed by its next triggered ability. Against a
+     * family with no deploy trigger the Trap is therefore still a real tempo card. */
+    unit.exhausted=true;unit.stunned=true;unit.stunSource='Trap';unit.triggerSuppressed=true;
+    emit(state,'trap-sprung',{side:enemySide,lane:laneIndex,cardId:trap.card.id,uid:unit.uid,targetCardId:card.id},`${who(enemySide)} Trap held ${card.name} exhausted through its next refresh and suppressed its next trigger.`);
     return;
   }
   if(card.family==='Specimen'&&enemyLane.units.length){
-    unit.power+=1;unit.tempPower+=1;
+    unit.power+=1;unit.tempPower+=1;unit.tempHold=1;
     emit(state,'deploy-trigger',{side,lane:laneIndex,uid:unit.uid,cardId:card.id,trigger:'Specimen',amount:1},`${card.name} adapted for +1 power this turn.`);
     emit(state,'power-change',{side,lane:laneIndex,uid:unit.uid,cardId:card.id,amount:1,source:'Specimen'});
   }
@@ -374,10 +433,19 @@ function maybeRepositionMutable(state,side,laneIndex,unit){
   moveUnitMutable(state,side,laneIndex,targetLane,unit,'Action');
   return targetLane;
 }
+/* Prefer a unit that can still act. `strongest` alone routinely put an Item's or an
+ * Action's bonus on a unit deployed this turn, which cannot attack with it. Falls back
+ * to the strongest unit overall when the whole lane is exhausted, and then holds the
+ * buff for a turn so it is not simply thrown away. */
+function strongestReady(units){
+  const live=units.filter(alive),ready=live.filter(u=>!u.exhausted);
+  return strongest(ready.length?ready:live);
+}
 function buffStrongestMutable(state,side,laneIndex,amount,source,cardId){
-  const target=strongest(state.players[side].lanes[laneIndex].units);
+  const target=strongestReady(state.players[side].lanes[laneIndex].units);
   if(!target||amount<=0)return null;
   target.power+=amount;target.tempPower+=amount;
+  if(target.exhausted)target.tempHold=Math.max(target.tempHold||0,1);
   emit(state,'power-change',{side,lane:laneIndex,uid:target.uid,cardId:target.card.id,amount,source,sourceCardId:cardId||null},`${source} granted ${target.card.name} +${amount} power this turn.`);
   return target;
 }
@@ -391,10 +459,13 @@ function resolveImmediateMutable(state,side,laneIndex,card){
       if(!target)continue;
       target.power-=1;
       emit(state,'power-change',{side:other(side),lane:i,uid:target.uid,cardId:target.card.id,amount:-1,source:'Disaster',sourceCardId:card.id});
-      if(target.power>0)target.exhausted=true;
+      /* Exhaustion clears at the victim's refresh, which always precedes the victim's
+       * combat, so a bare `exhausted = true` here could never cost anyone an attack.
+       * Stunning does: the survivor stays exhausted through one of its own refreshes. */
+      if(target.power>0){target.exhausted=true;target.stunned=true;target.stunSource='Disaster';}
       pruneDead(state,other(side),i);
     }
-    emit(state,'keyword-note',{side,lane:laneIndex,cardId:card.id,family:'Disaster'},`${card.name} dealt the minimum deterministic 1 damage to each lane’s highest-power enemy and exhausted survivors.`);
+    emit(state,'keyword-note',{side,lane:laneIndex,cardId:card.id,family:'Disaster'},`${card.name} dealt the minimum deterministic 1 damage to each lane’s highest-power enemy and held survivors exhausted through their next refresh.`);
   }
   else if(card.family==='Spell'){
     const target=strongest(enemy.lanes[laneIndex].units)||strongest(lane.units);
@@ -448,12 +519,22 @@ export function playCard(state,side,handIndex,laneIndex){
 }
 
 function combatValue(unit,attacking){return Math.max(0,unit.power+(attacking&&!unit.weaponUsed?unit.weaponBonus:0));}
-function finishAttackMutable(state,side,unit){
+/* The lane breach ceiling is a property of the lane, not a constant. A lane nobody is
+ * defending has no ceiling — only the armour divisor stands between raw power and the
+ * Core — while a lane with a living defender keeps one. When `MAX_LANE_BREACH` was a flat
+ * constant, a lane defended by 0 power and a lane defended by 20 both yielded at most 3,
+ * so abandoning two lanes and stacking one cost 0.3pp and lane choice was not a decision. */
+function laneBreachCap(defenderLane,pierce=0){
+  return defenderLane.units.some(alive)?MAX_LANE_BREACH+pierce:Infinity;
+}
+function finishAttackMutable(state,side,unit,laneIndex=null){
   const weaponTriggered=unit.weaponBonus>0&&!unit.weaponUsed&&unit.moved;
   unit.weaponUsed=true;
   if(!weaponTriggered)return;
+  if(suppressedTrigger(state,side,laneIndex,unit,'Weapon'))return;
   if(lawBlocks(state,side,'Weapon',{uid:unit.uid,cardId:unit.card.id}))return;
   const p=state.players[side];draw(state,side,1,'Weapon');
+  if(state.phase==='ended')return;
   if(p.hand.length){
     let discardIndex=0;
     for(let i=1;i<p.hand.length;i++)if(totalCost(p.hand[i])>totalCost(p.hand[discardIndex])||(totalCost(p.hand[i])===totalCost(p.hand[discardIndex])&&cmp(p.hand[i].id,p.hand[discardIndex].id)>0))discardIndex=i;
@@ -462,7 +543,12 @@ function finishAttackMutable(state,side,unit){
     emit(state,'keyword-note',{side,uid:unit.uid,cardId:unit.card.id,keyword:'Weapon',family:'Weapon'},`${unit.card.name}'s Weapon trigger drew 1 card, then discarded ${discarded.name}.`);
   }
 }
-function expireTempsMutable(state,side){for(let i=0;i<3;i++){for(const unit of state.players[side].lanes[i].units){if(unit.tempPower){unit.power-=unit.tempPower;emit(state,'power-change',{side,lane:i,uid:unit.uid,cardId:unit.card.id,amount:-unit.tempPower,source:'expire'});unit.tempPower=0;}}pruneDead(state,side,i);}}
+/* A temporary buff granted to a unit that could not attack this turn (a unit deployed
+ * this turn, or one held exhausted) is held through one end step instead of expiring
+ * unused. Without this, Specimen's on-deploy +1 was structurally impossible to use:
+ * it deploys exhausted, so it cannot attack with the buff, and the buff expired at its
+ * own controller's end step, so it could not defend with it either. */
+function expireTempsMutable(state,side){for(let i=0;i<3;i++){for(const unit of state.players[side].lanes[i].units){if(!unit.tempPower)continue;if(unit.tempHold>0){unit.tempHold-=1;continue;}unit.power-=unit.tempPower;emit(state,'power-change',{side,lane:i,uid:unit.uid,cardId:unit.card.id,amount:-unit.tempPower,source:'expire'});unit.tempPower=0;}pruneDead(state,side,i);}}
 function plagueStepMutable(state){for(const side of ['player','rival'])for(let i=0;i<3;i++){for(const unit of state.players[side].lanes[i].units){if(unit.infected){if(unit.moved)unit.infected=false;else {unit.power-=1;unit.basePower-=1;emit(state,'power-change',{side,lane:i,uid:unit.uid,cardId:unit.card.id,amount:-1,source:'Plague'});}}}pruneDead(state,side,i);}}
 function ritualStepMutable(state){
   for(const side of ['player','rival'])for(let laneIndex=0;laneIndex<3;laneIndex++){
@@ -489,7 +575,9 @@ function autoShiftWarriorsMutable(state,side){
       const options=[source-1,source+1].filter(i=>i>=0&&i<3&&p.lanes[i].units.length<MAX_UNITS_PER_LANE);
       if(!options.length)continue;
       const target=options.sort((a,b)=>p.lanes[a].units.length-p.lanes[b].units.length||a-b)[0];
-      if(p.lanes[target].units.length+1<p.lanes[source].units.length)moveUnitMutable(state,side,source,target,unit,'Warrior');
+      if(p.lanes[target].units.length+1>=p.lanes[source].units.length)continue;
+      if(suppressedTrigger(state,side,source,unit,'Warrior'))continue;
+      moveUnitMutable(state,side,source,target,unit,'Warrior');
     }
   }
 }
@@ -508,9 +596,9 @@ export function resolveCombat(state,attackerSide){
       let fighters=eligible;
       if(flyers.length&&!hasAirBlocker){
         const airDamage=flyers.reduce((sum,u)=>sum+combatValue(u,true),0);
-        for(const u of flyers)finishAttackMutable(next,attackerSide,u);
+        for(const u of flyers)finishAttackMutable(next,attackerSide,u,laneIndex);
         emit(next,'combat-strike',{side:attackerSide,lane:laneIndex,amount:airDamage,kind:'air'});
-        dealCoreDamageMutable(next,defenderSide,airDamage,laneIndex,{source:'combat',pierce:FLYING_ARMOUR_PIERCE});
+        dealCoreDamageMutable(next,defenderSide,airDamage,laneIndex,{source:'combat',pierce:FLYING_ARMOUR_PIERCE,cap:laneBreachCap(dLane,FLYING_ARMOUR_PIERCE)});
         fighters=eligible.filter(u=>!flyers.some(f=>f.uid===u.uid));
         if(next.phase==='ended')break;
       }
@@ -518,9 +606,9 @@ export function resolveCombat(state,attackerSide){
         const defenders=dLane.units.filter(alive);
         if(defenders.length===0){
           const damage=fighters.reduce((sum,u)=>sum+combatValue(u,true),0);
-          for(const u of fighters)finishAttackMutable(next,attackerSide,u);
+          for(const u of fighters)finishAttackMutable(next,attackerSide,u,laneIndex);
           emit(next,'combat-strike',{side:attackerSide,lane:laneIndex,amount:damage,kind:'open'});
-          dealCoreDamageMutable(next,defenderSide,damage,laneIndex,{source:'combat'});
+          dealCoreDamageMutable(next,defenderSide,damage,laneIndex,{source:'combat',cap:Infinity});
         }else{
           const orderedA=[...fighters].sort((a,b)=>combatValue(b,true)-combatValue(a,true)||cmp(a.uid,b.uid));
           const orderedD=[...defenders].sort((a,b)=>(hasKeyword(b,'Guard')?1:0)-(hasKeyword(a,'Guard')?1:0)||b.power-a.power||cmp(a.uid,b.uid));
@@ -533,12 +621,20 @@ export function resolveCombat(state,attackerSide){
             if(aGuard&&!aGuardUsed&&dealtToA>0){dealtToA=Math.max(0,dealtToA-1);aGuardUsed=true;next.stats[attackerSide].damagePrevented+=1;emit(next,'damage-prevented',{side:attackerSide,lane:laneIndex,uid:a.uid,cardId:a.card.id,amount:1,source:'Guard'});}
             d.power-=dealtToD;a.power-=dealtToA;
             emit(next,'combat-clash',{side:attackerSide,lane:laneIndex,uid:a.uid,cardId:a.card.id,targetUid:d.uid,targetCardId:d.card.id,amount:dealtToD,taken:dealtToA});
-            finishAttackMutable(next,attackerSide,a);
+            finishAttackMutable(next,attackerSide,a,laneIndex);
+            if(next.phase==='ended')break;
           }
           pruneDead(next,attackerSide,laneIndex);pruneDead(next,defenderSide,laneIndex);
           if(defender.lanes[laneIndex].units.length===0){
+            /* A broken lane pushes the surviving attackers' *remaining* power through,
+             * not one point per body. The old `survivors.length` made winning a fight
+             * strictly worse than the enemy not showing up (Σpower vs ≤3), so clearing a
+             * lane was punished. Remaining power is naturally lower than the open-lane
+             * raw — the defenders took their toll — and the contested cap still applies,
+             * because the attackers had to fight through. */
             const survivors=attacker.lanes[laneIndex].units.filter(u=>fighters.some(f=>f.uid===u.uid)&&alive(u));
-            if(survivors.length){emit(next,'combat-strike',{side:attackerSide,lane:laneIndex,amount:survivors.length,kind:'breakthrough'});dealCoreDamageMutable(next,defenderSide,survivors.length,laneIndex,{source:'combat'});}
+            const raw=survivors.reduce((sum,u)=>sum+Math.max(0,u.power),0);
+            if(raw>0){emit(next,'combat-strike',{side:attackerSide,lane:laneIndex,amount:raw,kind:'breakthrough'});dealCoreDamageMutable(next,defenderSide,raw,laneIndex,{source:'combat',cap:MAX_LANE_BREACH});}
           }
         }
       }
@@ -546,15 +642,24 @@ export function resolveCombat(state,attackerSide){
     const swing=coreBefore-defender.core;
     if(swing>next.stats[attackerSide].largestLaneSwing)next.stats[attackerSide].largestLaneSwing=swing;
   }
-  expireTempsMutable(next,attackerSide);plagueStepMutable(next);ritualStepMutable(next);flushDelayedMutable(next,attackerSide);autoShiftWarriorsMutable(next,attackerSide);
-  emit(next,'phase',{phase:'end-step',side:attackerSide});
+  /* The end step does not run once a Core has fallen. Running it unconditionally was the
+   * other half of the trailing-event defect: it emitted power-change / unit-moved /
+   * unit-destroyed after `match-end`. */
+  if(next.phase!=='ended'){
+    expireTempsMutable(next,attackerSide);plagueStepMutable(next);ritualStepMutable(next);flushDelayedMutable(next,attackerSide);autoShiftWarriorsMutable(next,attackerSide);
+    emit(next,'phase',{phase:'end-step',side:attackerSide});
+  }
   checkWinner(next);return next;
 }
 
 const TIERS={
-  recruit:{maxPlays:2,minGain:0,coreWeight:1,unitWeight:1,threat:0,defensiveBias:1,lethalBonus:0,defenseLow:0.5,defenseHigh:0.5,handWeight:0,deckWeight:0,style:null,combatLook:0,replyLook:0,mulliganMax:0,mulliganCost:99},
-  veteran:{maxPlays:4,minGain:0.25,coreWeight:1.6,unitWeight:1,threat:0.95,defensiveBias:1,lethalBonus:45,defenseLow:1.6,defenseHigh:0.8,handWeight:0.3,deckWeight:0.15,style:null,combatLook:0,replyLook:0,mulliganMax:2,mulliganCost:7},
-  sovereign:{maxPlays:6,minGain:0.4,coreWeight:1.6,unitWeight:0.8,threat:1.6,defensiveBias:1.4,lethalBonus:140,defenseLow:3,defenseHigh:1,handWeight:1,deckWeight:0,style:{trap:1,disaster:1,hex:1,reaction:1,defense:1},combatLook:2,replyLook:1.5,mulliganMax:3,mulliganCost:6}
+  recruit:{maxPlays:2,minGain:0,coreWeight:1,unitWeight:1,threat:0,defensiveBias:1,lethalBonus:0,defenseLow:0.5,defenseHigh:0.5,handWeight:0,deckWeight:0,supportWeight:0,style:null,combatLook:0,replyLook:0,mulliganMax:0,mulliganCost:99},
+  veteran:{maxPlays:4,minGain:0.25,coreWeight:1.6,unitWeight:1,threat:0.95,defensiveBias:1,lethalBonus:45,defenseLow:1.6,defenseHigh:0.8,handWeight:0.3,deckWeight:0.15,supportWeight:0.7,style:null,combatLook:0,replyLook:0,mulliganMax:2,mulliganCost:7},
+  /* sovereign's unitWeight was 0.8 and threat 1.6. Under the lane-dependent breach
+   * ceiling, board power converts to Core damage far more directly, so undervaluing
+   * units relative to veteran cost the top tier its edge; measured seat-averaged
+   * sovereign-over-veteran rose from 52.5% to 55.3% at unitWeight 1 / threat 2.2. */
+  sovereign:{maxPlays:6,minGain:0.4,coreWeight:1.6,unitWeight:1,threat:2.2,defensiveBias:1.4,lethalBonus:140,defenseLow:3,defenseHigh:1,handWeight:1,deckWeight:0,supportWeight:1.2,style:{trap:1,disaster:1,plague:1,reaction:1,defense:1},combatLook:2,replyLook:1.5,mulliganMax:3,mulliganCost:6}
 };
 for(const profile of Object.values(TIERS))Object.freeze(profile);Object.freeze(TIERS);
 export const AI_TIER_PROFILES=TIERS;
@@ -565,22 +670,70 @@ export function projectLaneDamage(state,attackerSide,laneIndex){
   const dLane=state.players[defenderSide].lanes[laneIndex],defenders=dLane.units.filter(alive);
   const flyers=attackers.filter(u=>hasKeyword(u,'Flying'));
   const blocked=defenders.some(u=>hasKeyword(u,'Flying')||hasKeyword(u,'Guard'));
-  let damage=0,ground=attackers;
-  if(flyers.length&&!blocked){damage+=flyers.reduce((s,u)=>s+combatValue(u,true),0);ground=attackers.filter(u=>!flyers.some(f=>f.uid===u.uid));}
+  /* Mirrors resolveCombat exactly, including the lane-dependent breach ceiling. If this
+   * drifts from the combat resolver the AI plans against a game it is not playing and the
+   * UI's lane-danger badges lie. */
+  let breach=0,ground=attackers;
+  if(flyers.length&&!blocked){
+    breach+=armourBreach(flyers.reduce((s,u)=>s+combatValue(u,true),0),{pierce:FLYING_ARMOUR_PIERCE,cap:laneBreachCap(dLane,FLYING_ARMOUR_PIERCE)});
+    ground=attackers.filter(u=>!flyers.some(f=>f.uid===u.uid));
+  }
   if(ground.length){
-    if(!defenders.length)damage+=ground.reduce((s,u)=>s+combatValue(u,true),0);
+    if(!defenders.length)breach+=armourBreach(ground.reduce((s,u)=>s+combatValue(u,true),0),{cap:Infinity});
     else{
       const ap=ground.map(u=>combatValue(u,true)).sort((a,b)=>b-a),dp=defenders.map(u=>u.power).sort((a,b)=>b-a);
-      const paired=Math.min(ap.length,dp.length);let kills=0,survivors=0;
-      for(let i=0;i<paired;i++){if(ap[i]>=dp[i])kills+=1;if(ap[i]>dp[i])survivors+=1;}
-      if(kills===dp.length)damage+=survivors+Math.max(0,ap.length-dp.length);
+      const paired=Math.min(ap.length,dp.length);let kills=0,raw=0;
+      for(let i=0;i<paired;i++){if(ap[i]>=dp[i])kills+=1;if(ap[i]>dp[i])raw+=ap[i]-dp[i];}
+      for(let i=paired;i<ap.length;i++)raw+=ap[i];
+      if(kills===dp.length)breach+=armourBreach(raw,{cap:MAX_LANE_BREACH});
     }
   }
   const prevention=Math.max(0,dLane.supports.filter(s=>s.card.family==='Defense'&&!isDisabled(state,s)).length*2-state.players[defenderSide].corePreventionUsed[laneIndex]);
-  return Math.max(0,Math.min(Math.ceil(damage/Math.max(1,CORE_ARMOUR_DIVISOR)),MAX_LANE_BREACH)-prevention);
+  return Math.max(0,breach-prevention);
 }
 export function laneThreat(state,side){
   return LANE_NAMES.map((name,lane)=>({lane,name,outgoing:projectLaneDamage(state,side,lane),incoming:projectLaneDamage(state,other(side),lane)}));
+}
+/* Base value of a persistent support to whoever controls it.
+ *
+ * `boardEval` used to score only Core delta, unit power, lane threat and Defense count,
+ * so every non-combat card evaluated to exactly 0, never cleared `minGain`, and was held
+ * forever: across 300 sovereign matches the AI played zero Traps, Bases, Environments,
+ * Laws, Rituals, Responses, Plagues or Viruses, including the ones sitting in its own
+ * starter deck, and ten event types fired zero times.
+ *
+ * Families whose canon text this engine cannot implement (Hex, World) are deliberately
+ * absent: they are inert, and an AI that paid a card for an inert effect would be worse,
+ * not better. See docs/match-rules.md, "Families that are still deliberately inert". */
+const SUPPORT_VALUE={Base:2.2,Trap:2,Ritual:1.6,Virus:1.6,Plague:1.4,Response:1.4,Reaction:1.2,Environment:1.2,Law:1.1};
+function supportScore(state,side,cfg){
+  if(!cfg.supportWeight)return 0;
+  const me=state.players[side],foe=state.players[other(side)];
+  let score=0;
+  for(let lane=0;lane<3;lane++){
+    for(const s of me.lanes[lane].supports){
+      if(isDisabled(state,s))continue;
+      const base=SUPPORT_VALUE[s.card.family];
+      if(!base)continue;
+      let value=base;
+      /* Contextual, so the AI does not spend cards on supports that cannot pay off. */
+      if(s.card.family==='Trap')value*=foe.hand.length>=1?1:0.25;
+      else if(s.card.family==='Ritual')value*=1+(s.counters||0)*0.5;
+      else if(s.card.family==='Plague')value*=Math.max(0.25,foe.lanes[lane].units.filter(u=>alive(u)&&u.infected).length);
+      else if(s.card.family==='Environment')value*=me.lanePlays[lane]===0?1:0.5;
+      /* A Response only has something to copy if an Action or Weapon is still to come. */
+      else if(s.card.family==='Response')value*=me.lanes[lane].units.some(alive)?(me.hand.some(c=>c.family==='Action'||c.family==='Weapon')?1.4:0.6):0.2;
+      else if(s.card.family==='Law')value*=me.lanes.some(l=>l.supports.some(x=>x.card.family==='Base'||x.card.family==='Ritual'))||foe.lanes.some(l=>l.supports.some(x=>x.card.family==='Base'||x.card.family==='Ritual'))?1.5:0.6;
+      score+=value*cfg.supportWeight;
+    }
+    /* An opposing persistent support is a standing liability, which is what makes
+     * Disaster-style answers and racing it worth scoring at all. */
+    for(const s of foe.lanes[lane].supports){
+      if(isDisabled(state,s))continue;
+      score-=(SUPPORT_VALUE[s.card.family]||0)*cfg.supportWeight*0.6;
+    }
+  }
+  return score;
 }
 function boardEval(state,side,cfg){
   const me=state.players[side],foe=state.players[other(side)];
@@ -604,6 +757,7 @@ function boardEval(state,side,cfg){
     if(out>=foe.core)score+=cfg.lethalBonus;
     if(inc>=me.core)score-=cfg.lethalBonus*cfg.defensiveBias;
   }
+  score+=supportScore(state,side,cfg);
   score+=me.hand.length*cfg.handWeight-foe.hand.length*cfg.handWeight*0.5;
   score+=Math.min(me.deck.length,8)*cfg.deckWeight;
   return score;
@@ -613,7 +767,7 @@ function styleBias(state,side,candidate,style){
   let bias=0;
   if(style.trap&&card.family==='Trap')bias+=(foe.hand.length>=2?1.5:-3)*style.trap;
   if(style.disaster&&card.family==='Disaster')bias+=(foe.lanes.filter(l=>l.units.some(alive)).length>=2?1.5:-3)*style.disaster;
-  if(style.hex&&(card.family==='Hex'||card.family==='Plague'))bias+=(foe.lanes[candidate.lane].units.filter(alive).length>=2?1:-1.5)*style.hex;
+  if(style.plague&&card.family==='Plague')bias+=(foe.lanes[candidate.lane].units.filter(alive).length>=2?1:-1.5)*style.plague;
   if(style.reaction&&card.family==='Reaction')bias+=(foe.lanes[candidate.lane].units.some(u=>u.card.family==='Monster')?1:-1)*style.reaction;
   if(style.overcommit&&ENTITY_FAMILIES.has(card.family)&&foe.hand.length>0&&me.lanes[candidate.lane].units.filter(alive).length>=2)bias-=1.5*style.overcommit;
   if(style.defense&&card.family==='Defense'&&me.core<=8)bias+=2.5*style.defense;
@@ -621,6 +775,15 @@ function styleBias(state,side,candidate,style){
   return bias;
 }
 function searchClone(state){const copy=clone(state);copy.events=[];copy.log=[];copy.quiet=true;return copy;}
+/* The opponent's reply comes after their refresh, so the units they just deployed are
+ * ready by then. Resolving their combat straight off the current position modelled every
+ * fresh enemy unit as harmless and made the deepest tier blind to exactly the boards it
+ * is supposed to see. Stunned units stay exhausted, matching refreshMutable. */
+function readyForReply(state,side){
+  const copy=searchClone(state);
+  for(const lane of copy.players[side].lanes)for(const unit of lane.units)if(!unit.stunned)unit.exhausted=false;
+  return copy;
+}
 function legalCandidates(state,side){
   const out=[],hand=state.players[side].hand;
   for(let h=0;h<hand.length;h++)for(let lane=0;lane<3;lane++)if(getPlayability(state,side,h,lane).ok)out.push({h,lane});
@@ -638,7 +801,7 @@ export function planAiPlays(state,side,tier){
       if(config.combatLook&&!position.winner){
         const mine=resolveCombat(position,side);
         value+=config.combatLook*boardEval(mine,side,config);
-        if(config.replyLook&&!mine.winner)value+=config.replyLook*boardEval(resolveCombat(mine,other(side)),side,config);
+        if(config.replyLook&&!mine.winner)value+=config.replyLook*boardEval(resolveCombat(readyForReply(mine,other(side)),other(side)),side,config);
       }
       return value;
     };
@@ -670,7 +833,16 @@ function runAiMainMutable(state){const next=aiTakeMainPhase(state,'rival');if(ne
 export function completePlayerTurn(state){
   if(state.phase!=='main'||state.active!=='player')throw new Error('Player turn is not ready to complete.');
   let next=resolveCombat(state,'player');if(next.phase==='ended')return next;
-  next.active='rival';next.turnCount+=1;refreshMutable(next,'rival',{drawCard:true});
+  /* On the draw. Acting second is a measurable disadvantage — the side that acts first
+   * always swings first in the round that reaches lethal — so the second seat draws one
+   * extra card at its first refresh. This is the same one-card compensation the engine
+   * always intended, moved to the seat that is actually behind: it used to be levied as
+   * a *penalty* on the first seat's opening refresh, which left the human on 6 cards
+   * against the rival's 7 and was justified in the docs by an on-the-play tempo edge
+   * that deployment fatigue had already removed. Measured on mirror decks, symmetric
+   * draws put the first seat at 62-72%; with this rule both seats land near 50%. */
+  next.active='rival';next.turnCount+=1;
+  refreshMutable(next,'rival',{drawCard:true,drawCount:DRAW_PER_REFRESH+(next.players.rival.turnNumber===0?1:0)});
   if(next.phase==='ended')return checkWinner(next);
   emit(next,'phase',{phase:'main',side:'rival'},'Rival main phase began.');
   runAiMainMutable(next);

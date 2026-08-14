@@ -16,19 +16,33 @@ export const FAMILY_MARK = {
 
 /* VD-20: rarity is frame construction + a pip glyph, never colour alone. */
 export const RARITY_MARK = { Common: '○', Uncommon: '◔', Rare: '◑', Epic: '◕', Legendary: '●' };
-export const RARITY_ORDER = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4 };
+const RARITY_ORDER = { Common: 0, Uncommon: 1, Rare: 2, Epic: 3, Legendary: 4 };
 
 export const totalCost = c => c.cost.command + c.cost.insight + c.cost.essence;
+
+/* ---------- Disclosure: families the engine resolves to nothing ----------
+   231 of the 1,134 cards (20.4%) belong to a family whose canonical text the
+   engine records but never turns into a numeric effect: an Operative logs a
+   keyword trigger, a God's decree is text, a Ruler's activation is not
+   auto-fired, a World keeps its division as metadata. That is a defensible
+   engine decision, but it is not one a player can infer from rules copy like
+   "Division matching is preserved as metadata" — they read it as a mechanic.
+   Every surface that shows a card says so plainly instead. */
+export const NO_EFFECT_FAMILIES = new Set(['Operative', 'God', 'Ruler', 'World']);
+export const NO_EFFECT_BADGE = '⚠ NO MECHANICAL EFFECT';
+/** Used on a tile that already carries a contextual reason, so the pair stays
+ *  inside the two lines the note slot is clamped to. */
+export const NO_EFFECT_SHORT = '⚠ NO EFFECT';
+export const NO_EFFECT_NOTE = 'This card is played and held like any other, but the engine resolves no numeric effect from it.';
+export const hasNoEffect = c => NO_EFFECT_FAMILIES.has(c.family);
 
 /* ---------- PF-4: prebuilt lowercase search index ----------
    1,134 strings built once. Filtering is then a single indexOf pass. */
 
-export const searchIndex = cards.map(c => {
+const searchIndex = cards.map(c => {
   const d = divisionById.get(c.divisionId);
   return `${c.name} ${c.id} ${d.name} ${pad2(d.id)} ${c.family} ${c.subtype} ${c.rarity} ${c.setLabel} ${c.rulesText} ${c.keywords.join(' ')}`.toLowerCase();
 });
-
-export const cardIndexById = new Map(cards.map((c, i) => [c.id, i]));
 
 const COST_BANDS = { '0-3': [0, 3], '4-6': [4, 6], '7+': [7, Infinity] };
 
@@ -80,14 +94,15 @@ export function nearestByName(query, limit = 4) {
 
 export function cardLabel(c) {
   const d = divisionById.get(c.divisionId);
-  return `${c.name}. ${d.name} ${pad2(d.id)}, ${c.family}. Cost ${c.cost.command} command, ${c.cost.insight} insight, ${c.cost.essence} essence. Power ${c.power}. ${c.rarity}.`;
+  const blank = hasNoEffect(c) ? ' No mechanical effect.' : '';
+  return `${c.name}. ${d.name} ${pad2(d.id)}, ${c.family}. Cost ${c.cost.command} command, ${c.cost.insight} insight, ${c.cost.essence} essence. Power ${c.power}. ${c.rarity}.${blank}`;
 }
 
 /* ---------- PF-6: atlas decode gate ----------
    Until the atlas decodes, every .cardArt shows the division glyph fallback.
    `data-art` on <html> is the single switch; no per-card work, no layout shift. */
 
-export const ATLAS_SRC = 'assets/card-art-atlas.avif';
+const ATLAS_SRC = 'assets/card-art-atlas.avif';
 
 export function gateAtlas() {
   const root = document.documentElement;
@@ -115,6 +130,13 @@ export function makeTile({ tag = 'button', role = null, cls = 'codexCard' } = {}
   const ci = h('span', { class: 'cost insight', 'aria-hidden': 'true' });
   const ce = h('span', { class: 'cost essence', 'aria-hidden': 'true' });
   const pow = h('span', { class: 'cardPower', 'aria-hidden': 'true' });
+  // The disclosure shares the single contextual-reason slot rather than adding
+  // a block of its own. The row pitch is a fixed 272px + 14px gap set from CSS
+  // (`--tile-h`) and mirrored by ROW_H in JS; a permanently extra line pushed
+  // the tallest tiles to 300px and made them overlap the row below. The
+  // disclosure is written into `.cardNote` first, in front of whatever
+  // contextual reason the screen supplied, and marked with `data-blank` on the
+  // tile so the design layer can give it a treatment of its own later.
   const note = h('span', { class: 'cardNote', 'aria-hidden': 'true' });
   const el = h(tag, { class: cls, type: tag === 'button' ? 'button' : null, tabindex: '-1' },
     h('span', { class: 'cardTop', 'aria-hidden': 'true' }, glyph, fam, rar),
@@ -153,6 +175,7 @@ export function paintTile(el, c, opts = {}) {
     setText(r.ce, c.cost.essence);
     setText(r.pow, c.power);
     setAttr(r.art, 'data-glyph', d.icon);
+    setAttr(el, 'data-blank', hasNoEffect(c) ? 'true' : null);
   }
   setAttr(el, 'aria-label', opts.label || cardLabel(c));
   if (opts.action) el.dataset.action = opts.action;
@@ -166,9 +189,17 @@ export function paintTile(el, c, opts = {}) {
     setAttr(el, 'aria-disabled', opts.disabled ? 'true' : null);
     setClass(el, 'isDisabled', opts.disabled);
   }
-  setText(r.note, opts.note || '');
-  setClass(el, 'hasNote', Boolean(opts.note));
-  if (opts.noteKind !== undefined) setAttr(el, 'data-note', opts.noteKind || null);
+  // The disclosure always leads. When the screen also has something to say
+  // (in-doctrine, playability) the short form is used so the pair still fits
+  // the two lines the note slot is clamped to.
+  const blank = hasNoEffect(c);
+  const reason = opts.note || '';
+  const text = blank ? (reason ? `${NO_EFFECT_SHORT} · ${reason}` : NO_EFFECT_BADGE) : reason;
+  setText(r.note, text);
+  setClass(el, 'hasNote', Boolean(text));
+  // A card that does nothing is a warning regardless of what else is true of it.
+  if (blank) setAttr(el, 'data-note', 'warn');
+  else if (opts.noteKind !== undefined) setAttr(el, 'data-note', opts.noteKind || null);
   return el;
 }
 

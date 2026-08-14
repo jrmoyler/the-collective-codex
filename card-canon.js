@@ -68,4 +68,20 @@ const rarity=['Common','Uncommon','Rare','Epic','Legendary'];
 function stable(seed,mod){let x=2166136261;for(const ch of seed){x^=ch.charCodeAt(0);x=Math.imul(x,16777619)}return (x>>>0)%mod}
 function makeCard(sheet,row,d){const seed=`${sheet.id}:${d.id}`;const n=familyNouns[sheet.family];const name=`${prefixes[d.id-1]} ${n[stable(seed, n.length)]} ${suffixes[(row+d.id-1)%suffixes.length]}${sheet.set>1?` · ${String(sheet.set).padStart(2,'0')}`:''}`;const base=stable(seed+'cost',9);const cost={command:base%4,insight:(base+stable(seed+'i',4))%4,essence:(base+stable(seed+'e',5))%4};if(cost.command+cost.insight+cost.essence===0)cost.command=1;const power=2+stable(seed+'p',9);const primary=d.keywords[stable(seed+'k',d.keywords.length)];const secondary=d.keywords[(d.keywords.indexOf(primary)+1)%d.keywords.length];return {id:`D${String(d.id).padStart(2,'0')}-${sheet.family.toUpperCase()}-S${String(sheet.set).padStart(2,'0')}-${String(d.id).padStart(2,'0')}`,name,divisionId:d.id,divisionName:d.name,divisionIcon:d.icon,family:sheet.family,subtype:subtypes[sheet.family],rarity:rarity[stable(seed+'r',rarity.length)],set:sheet.set,setLabel:`${sheet.family} Set ${sheet.set}`,cost,power,rulesText:`${primary} — ${familyRules[sheet.family]}`,keywords:[primary,secondary,sheet.family],targeting:targets[sheet.family],timing:timing[sheet.family]||'Main',duration:['Environment','Law','Plague','Virus','World','Base','Defense','Weapon','Hex'].includes(sheet.family)?'Persistent':'Immediate',counterplay:['Dispel','Remove','Reposition','Deny'].slice(0,1+stable(seed+'c',3)),art:{atlas:'assets/card-art-atlas.avif',row,col:d.id-1},pvpLegal:true,sovereignOnly:false}}
 export const cards=sheets.flatMap((s,row)=>divisions.map(d=>makeCard(s,row,d)));
+
+/* The canon is frozen, deeply, before anything can reach it.
+ *
+ * match-engine.js shares these exact objects by reference — a deck, a hand and
+ * the board all point at the same card — which is worth a 5-10x speedup and is
+ * correct only for as long as nothing mutates a card. That invariant was
+ * previously enforced by nothing at all: a single `card.power -= 1` anywhere in
+ * the engine or the UI would have silently rewritten the canon for every other
+ * copy of that card, in every future match, until reload.
+ *
+ * Freezing makes the invariant the runtime's problem instead of a comment's.
+ * The nested cost/art/keywords/counterplay objects are frozen too, since a
+ * frozen card still hands out a mutable `cost`. No card data changes. */
+for(const c of cards){Object.freeze(c.cost);Object.freeze(c.art);Object.freeze(c.keywords);Object.freeze(c.counterplay);Object.freeze(c)}
+Object.freeze(cards);
+
 export const cardById=new Map(cards.map(c=>[c.id,c]));

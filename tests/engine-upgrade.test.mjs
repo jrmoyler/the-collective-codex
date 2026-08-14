@@ -182,7 +182,10 @@ test('statistics account for every card played, resource spent and Core point mo
     assert.equal(stats.resourcesSpent.total,RESOURCE_KEYS.reduce((sum,k)=>sum+stats.resourcesSpent[k],0));
     assert.equal(stats.cardsDrawn,eventsOf(state,'draw').filter(e=>e.side===side).length);
     assert.equal(stats.unitsLost,eventsOf(state,'unit-destroyed').filter(e=>e.side===side).length);
-    assert.ok(stats.largestLaneSwing<=MAX_LANE_BREACH+1,'a single lane cannot exceed its breach ceiling in one combat');
+    // Rules change: the breach ceiling now applies to contested lanes only, so a single
+    // undefended lane can push more than MAX_LANE_BREACH in one combat. What still holds
+    // is that no lane can push more Core than the Core had.
+    assert.ok(stats.largestLaneSwing<=20,'a lane cannot take more Core than a side started with');
   }
   assert.equal(state.stats.player.unitsDestroyed,state.stats.rival.unitsLost);
   assert.equal(state.stats.player.coreDamageDealt,state.stats.rival.coreDamageTaken-state.stats.rival.fatigueDamage);
@@ -211,7 +214,13 @@ test('drawing from an empty doctrine deals escalating fatigue damage and ends th
   const fatigue=eventsOf(state,'fatigue').filter(e=>e.side==='player');
   assert.ok(fatigue.length>=3);
   assert.deepEqual(fatigue.slice(0,3).map(e=>e.amount),[1,2,3]);
-  assert.ok(state.stats.player.fatigueDamage>=6);
+  // The fatigue *counter* escalates 1, 2, 3…; the damage that lands is clamped to the
+  // Core that is actually left, so fatigueDamage tracks the core-damage events rather
+  // than the raw counter. (It used to assert >= 6, which only held while the stat was
+  // allowed to exceed the Core it consumed.)
+  const fatigueDealt=eventsOf(state,'core-damage').filter(e=>e.side==='player'&&e.source==='fatigue').reduce((s,e)=>s+e.amount,0);
+  assert.equal(state.stats.player.fatigueDamage,fatigueDealt);
+  assert.ok(fatigueDealt>=3,`fatigue should be doing the killing, dealt ${fatigueDealt}`);
   assert.equal(state.phase,'ended');
   assert.equal(state.winner,'rival');
   assert.equal(state.endReason,'fatigue');
@@ -254,16 +263,39 @@ test('a deployed unit is exhausted until its controller refreshes',()=>{
   if(state.phase!=='ended')assert.equal(state.players.player.lanes[0].units[0]?.exhausted??false,false);
 });
 
-test('Core armour and the lane breach ceiling are reported as prevented damage',()=>{
+test('an undefended lane has no breach ceiling, only the armour divisor',()=>{
+  // Rules change: MAX_LANE_BREACH is no longer a flat constant. A lane nobody defends
+  // is uncapped, so power above the old ceiling is no longer discarded and abandoning a
+  // lane is punished. A defended lane still keeps the ceiling (asserted below).
   const brute=makeCard('BRUTE',{power:20,cost:zero});
   let state=mainState([brute,...filler('P').slice(1)]);
   state=playCard(state,'player',0,1);
   state=resolveCombat(ready(state,'player'),'player');
+  const expected=Math.ceil(20/CORE_ARMOUR_DIVISOR);
+  assert.ok(expected>MAX_LANE_BREACH,'the test is only meaningful above the old ceiling');
   const dealt=eventsOf(state,'core-damage').find(e=>e.side==='rival');
-  assert.equal(dealt.amount,MAX_LANE_BREACH);
+  assert.equal(dealt.amount,expected);
   const absorbed=eventsOf(state,'damage-prevented').find(e=>e.source==='Armour');
-  assert.equal(absorbed.amount,20-MAX_LANE_BREACH);
-  assert.equal(20-state.players.rival.core,MAX_LANE_BREACH);
+  assert.equal(absorbed.amount,20-expected);
+  assert.equal(20-state.players.rival.core,expected);
+});
+
+test('a defended lane keeps its breach ceiling, so damage scales with what the lane faces',()=>{
+  const brute=makeCard('BRUTE',{power:30,cost:zero});
+  const chaff=makeCard('CHAFF',{power:1,cost:zero});
+  const open=(()=>{
+    let s=mainState([brute,...filler('P').slice(1)]);
+    s=playCard(s,'player',0,1);
+    return 20-resolveCombat(ready(s,'player'),'player').players.rival.core;
+  })();
+  const defended=(()=>{
+    let s=mainState([brute,...filler('P').slice(1)],[chaff,...filler('R').slice(1)]);
+    s=playCard(s,'player',0,1);
+    s.active='rival';s=playCard(s,'rival',0,1);s.active='player';
+    return 20-resolveCombat(ready(s,'player'),'player').players.rival.core;
+  })();
+  assert.ok(open>defended,`an undefended lane must hurt more than a defended one (${open} vs ${defended})`);
+  assert.ok(defended<=MAX_LANE_BREACH,'a contested lane is still capped');
 });
 
 test('Flying pierces one step of Core armour',()=>{

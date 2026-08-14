@@ -3,7 +3,7 @@
    never a modal). Validation is predictive: warnings never block, one error does. */
 
 import { h, setText, setAttr, setClass, clear, delegate, pad2 } from './core.js';
-import { divisions, families, cards, cardById, divisionById, queryCards, totalCost, FAMILY_MARK } from './cards.js';
+import { divisions, families, cards, cardById, divisionById, queryCards, totalCost, hasNoEffect, FAMILY_MARK } from './cards.js';
 import { createVGrid } from './vgrid.js';
 import { toast, confirmDialog, announce, setInlineError } from './ui.js';
 import { loadDeckIds, saveDeckIds, buildStarterDeck, deckProfile, castableTurn } from '../deck-store.js';
@@ -19,7 +19,12 @@ export function createDeck({ store, router, onStart }) {
   let ids = loadDeckIds(storage, cards);
   let mounted = false;
 
-  const persist = () => { saveDeckIds(storage, ids); };
+  /** Returns false when the doctrine could not be written to localStorage
+   *  (private mode, quota, storage disabled). Callers must not claim a change
+   *  was saved when it was not — silently dropping the write and then showing a
+   *  success toast is how people lose a 30-card deck without ever being told. */
+  const persist = () => saveDeckIds(storage, ids);
+  const NOT_SAVED = ' Not saved — this browser is blocking local storage, so it will be lost when you close the tab.';
 
   /* ---------- pool controls ---------- */
 
@@ -31,12 +36,17 @@ export function createDeck({ store, router, onStart }) {
 
   const grid = createVGrid({
     label: 'Card pool',
+    // Same reservation rule as the Codex grid (see ROW_H in screen-codex.js):
+    // the pitch has to clear the tallest tile. A compact tile is 250–253px, and
+    // 276 when the "no mechanical effect" disclosure shares the note slot with
+    // "In doctrine".
+    rowH: 288,
     onActivate: (id) => add(id, { source: 'pool' }),
     paintOpts: (card) => ({
       selected: ids.includes(card.id),
       note: ids.includes(card.id) ? 'In doctrine' : '',
       noteKind: ids.includes(card.id) ? 'ok' : null,
-      label: `${card.name}. ${divisionById.get(card.divisionId).name}, ${card.family}. Power ${card.power}. ${ids.includes(card.id) ? 'In your doctrine. Activate to remove.' : 'Activate to add to your doctrine.'}`,
+      label: `${card.name}. ${divisionById.get(card.divisionId).name}, ${card.family}. Power ${card.power}.${hasNoEffect(card) ? ' No mechanical effect.' : ''} ${ids.includes(card.id) ? 'In your doctrine. Activate to remove.' : 'Activate to add to your doctrine.'}`,
     }),
   });
 
@@ -104,18 +114,24 @@ export function createDeck({ store, router, onStart }) {
       return;
     }
     ids = [...ids, id];
-    persist(); refresh();
+    const saved = persist(); refresh();
     const card = cardById.get(id);
-    toast(`${card.name} added.`, { undo: () => { ids = ids.filter(x => x !== id); persist(); refresh(); } });
+    toast(`${card.name} added.${saved ? '' : NOT_SAVED}`, {
+      kind: saved ? 'info' : 'warn',
+      undo: () => { ids = ids.filter(x => x !== id); persist(); refresh(); },
+    });
   }
 
   function remove(id, { source } = {}) {
     const at = ids.indexOf(id);
     if (at < 0) return;
     ids = ids.filter((_, i) => i !== at);
-    persist(); refresh();
+    const saved = persist(); refresh();
     const card = cardById.get(id);
-    toast(`${card.name} removed.`, { undo: () => { ids = [...ids.slice(0, at), id, ...ids.slice(at)]; persist(); refresh(); } });
+    toast(`${card.name} removed.${saved ? '' : NOT_SAVED}`, {
+      kind: saved ? 'info' : 'warn',
+      undo: () => { ids = [...ids.slice(0, at), id, ...ids.slice(at)]; persist(); refresh(); },
+    });
   }
 
   /* ---------- analysis (IA-13) ---------- */
@@ -142,13 +158,17 @@ export function createDeck({ store, router, onStart }) {
         lastFamily = c.family;
         listEl.append(h('div', { class: 'deckGroup', 'aria-hidden': 'true' }, `${FAMILY_MARK[c.family] || '✦'} ${c.family}`));
       }
+      const blank = hasNoEffect(c);
       listEl.append(h('button', {
-        type: 'button', class: 'deckEntry', dataset: { action: 'removeEntry', card: c.id },
-        'aria-label': `Remove ${c.name}, ${c.family}, total cost ${totalCost(c)}`,
+        type: 'button', class: 'deckEntry', dataset: { action: 'removeEntry', card: c.id, blank: blank || null },
+        'aria-label': `Remove ${c.name}, ${c.family}, total cost ${totalCost(c)}${blank ? ', no mechanical effect' : ''}`,
         style: { '--division': divisionById.get(c.divisionId).color },
       },
         h('span', { class: 'deckEntryCost' }, String(totalCost(c))),
         h('b', { class: 'deckEntryName' }, c.name),
+        // The rail is the one place a player reviews all 30 choices at once; a
+        // card that does nothing has to be visible here or the count lies.
+        blank ? h('span', { class: 'deckEntryBlank', 'aria-hidden': 'true' }, '⚠') : null,
         h('span', { class: 'deckEntryX', 'aria-hidden': 'true' }, '✕'),
       ));
     }
@@ -199,6 +219,8 @@ export function createDeck({ store, router, onStart }) {
     if (late > 10) warn(`${late} cards cannot be cast before turn 5 — with a 6-card opening hand most of it will sit dead while the rival develops.`);
     const early = list.filter(c => castableTurn(c) <= 2).length;
     if (list.length >= 20 && early < 6) warn(`Only ${early} card${early === 1 ? '' : 's'} castable by turn 2 — you will not contest a lane before the rival does.`);
+    const blank = list.filter(hasNoEffect).length;
+    if (blank) warn(`${blank} card${blank === 1 ? '' : 's'} marked ⚠ have no mechanical effect — they can be played and can hold a lane, but the engine resolves no ability from them.`);
 
     setText(countEl, `${list.length} / ${DECK_SIZE}`);
     setAttr(progress, 'aria-valuenow', String(list.length));
@@ -213,11 +235,14 @@ export function createDeck({ store, router, onStart }) {
     setText(startBtn, legal ? 'Start local match' : `Add ${short} more card${short === 1 ? '' : 's'}`);
   }
 
-  function refreshPool() {
+  /** `keepCursor` is true only when the pool is being re-rendered without the
+   *  filter having changed (mounting, returning to the screen). A real filter
+   *  change resets the cursor AND the scroll offset — see createVGrid.setItems. */
+  function refreshPool({ keepCursor = true } = {}) {
     const f = store.state.deck;
     const list = queryCards({ division: f.d, family: f.f, cost: f.c, query: f.q, sort: 'division' });
     setText(poolCount, `${list.length.toLocaleString()} cards match`);
-    grid.setItems(list, { keepCursor: true });
+    grid.setItems(list, { keepCursor });
   }
 
   function refresh() {
@@ -238,8 +263,12 @@ export function createDeck({ store, router, onStart }) {
         confirmLabel: 'Replace it',
       }))) return;
       const before = ids;
-      ids = buildStarterDeck(cards); persist(); refresh();
-      toast('Starter doctrine restored.', { undo: () => { ids = before; persist(); refresh(); } });
+      ids = buildStarterDeck(cards);
+      const saved = persist(); refresh();
+      toast(`Starter doctrine restored.${saved ? '' : NOT_SAVED}`, {
+        kind: saved ? 'info' : 'warn',
+        undo: () => { ids = before; persist(); refresh(); },
+      });
     },
     clear: async () => {
       if (!ids.length) return;
@@ -249,8 +278,12 @@ export function createDeck({ store, router, onStart }) {
         confirmLabel: 'Discard it',
       }))) return;
       const before = ids;
-      ids = []; persist(); refresh();
-      toast('Doctrine cleared.', { undo: () => { ids = before; persist(); refresh(); } });
+      ids = [];
+      const saved = persist(); refresh();
+      toast(`Doctrine cleared.${saved ? '' : NOT_SAVED}`, {
+        kind: saved ? 'info' : 'warn',
+        undo: () => { ids = before; persist(); refresh(); },
+      });
     },
     focusDivision: () => { divisionSel.focus(); },
     startMatch: () => {
@@ -263,7 +296,7 @@ export function createDeck({ store, router, onStart }) {
     },
   });
 
-  const setPool = (patch) => { store.set({ deck: { ...store.state.deck, ...patch } }); refreshPool(); };
+  const setPool = (patch) => { store.set({ deck: { ...store.state.deck, ...patch } }); refreshPool({ keepCursor: false }); };
   search.addEventListener('input', () => setPool({ q: search.value }));
   divisionSel.addEventListener('change', () => setPool({ d: divisionSel.value }));
   familySel.addEventListener('change', () => setPool({ f: familySel.value }));

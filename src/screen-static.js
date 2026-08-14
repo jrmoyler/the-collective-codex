@@ -3,7 +3,7 @@
    No hero → metrics → three-feature-columns rhythm. */
 
 import { h, setText, clear, delegate, settings, pad2 } from './core.js';
-import { cards, divisions, divisionById, cardById, totalCost, FAMILY_MARK } from './cards.js';
+import { cards, divisions, divisionById, FAMILY_MARK } from './cards.js';
 import { GLOSSARY, PRIMER_PANELS } from './glossary.js';
 import { termLink } from './terms.js';
 import { openDialog, announce } from './ui.js';

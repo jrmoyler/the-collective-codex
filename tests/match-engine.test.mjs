@@ -42,7 +42,9 @@ test('mulligan replaces selected cards once and begins the player main phase',()
   const next=mulligan(state,'player',[0]);
   assert.equal(next.phase,'main');
   assert.equal(next.active,'player');
-  assert.equal(next.players.player.hand.length,5+Math.max(0,DRAW_PER_REFRESH-1));
+  // Both seats draw a full DRAW_PER_REFRESH on every refresh, the opening one included:
+  // deployment fatigue already removes the on-the-play advantage the old -1 paid for.
+  assert.equal(next.players.player.hand.length,5+DRAW_PER_REFRESH);
   assert.notEqual(next.players.player.hand[0].id,rejected);
   assert.equal(next.players.player.mulliganUsed,true);
   assert.deepEqual(next.players.player.resources,resourceCurve(1));

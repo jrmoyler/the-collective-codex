@@ -117,6 +117,13 @@ deckScreen.api.onChange(() => { codexScreen.refreshDeckState(); });
 let currentView = null;
 
 router.onChange(route => {
+  // A dialog belongs to the screen that opened it. Navigation — including a
+  // browser Back press, which no dialog can intercept — ends it. Without this,
+  // pressing Back over the pre-match dialog left a live scrim swallowing every
+  // click on whatever screen you landed on, unrecoverable short of a reload.
+  closeDialog(null);
+  hidePopover();
+
   let view = screens[route.view] ? route.view : 'home';
   if (view === 'match' && !matchScreen.hasMatch()) {
     // Nothing to show: send the player where a match actually starts.
@@ -126,9 +133,11 @@ router.onChange(route => {
   const viewChanged = currentView !== view;
   if (currentView && viewChanged) screens[currentView].hide();
   currentView = view;
-  hidePopover();
-  // IX-6: focus moves to the new view's heading on a real navigation only.
-  screens[view].show(route, { focus: viewChanged || !router.selfNav });
+
+  // The shell is updated BEFORE the screen renders. These four lines are the
+  // user's only way of knowing where they are; if a screen ever throws while
+  // rendering, the nav highlight, the <title> and body[data-view] must still
+  // agree with the URL rather than silently describing the previous screen.
   for (const link of navButtons) {
     const active = link.dataset.view === view;
     link.classList.toggle('active', active);
@@ -136,6 +145,9 @@ router.onChange(route => {
   }
   document.body.dataset.view = view;
   document.title = `${{ home: 'The Collective Codex', codex: 'Codex', deck: 'Doctrine', match: 'Battlefield', rules: 'Rules' }[view]} — The Collective Codex`;
+
+  // IX-6: focus moves to the new view's heading on a real navigation only.
+  screens[view].show(route, { focus: viewChanged || !router.selfNav });
 });
 
 /* ---------- global keyboard (§3.1) ---------- */
@@ -149,8 +161,14 @@ function typing() {
 
 addEventListener('keydown', ev => {
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  // A modal owns the keyboard for as long as it is up. Escape is handled by the
+  // dialog layer itself (src/ui.js, one listener for the whole app); every other
+  // global chord — g+letter, /, ? — is inert. Letting them through navigated the
+  // shell out from under an open dialog, leaving a modal scrim over an unrelated
+  // screen with all pointer input dead: a mouse-only user was stuck until they
+  // reloaded the page.
+  if (dialogOpen()) return;
   if (ev.key === 'Escape') {
-    if (dialogOpen()) return;              // the dialog handles its own Escape
     if (popoverOpen()) { hidePopover(); return; }
     if (screens[currentView]?.escape?.()) return;
     if (typing()) document.activeElement.blur();

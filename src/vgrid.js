@@ -96,7 +96,16 @@ export function createVGrid({ minTile = 168, rowH = 262, gap = 12, label = 'Card
     observe() { if (ro) ro.observe(el); measure(); ensurePool(); },
     setItems(next, { keepCursor = false } = {}) {
       items = next;
-      cursor = keepCursor ? clamp(cursor, 0, Math.max(0, items.length - 1)) : 0;
+      if (keepCursor) {
+        cursor = clamp(cursor, 0, Math.max(0, items.length - 1));
+      } else {
+        cursor = 0;
+        // Resetting the cursor without resetting the scroll offset leaves the
+        // browser clamping the old offset to the new, smaller maximum — i.e.
+        // parked at the bottom of a freshly narrowed result set. A new list
+        // starts at its first item.
+        el.scrollTop = 0;
+      }
       measure(); layout(); paint();
     },
     repaint: paint,
