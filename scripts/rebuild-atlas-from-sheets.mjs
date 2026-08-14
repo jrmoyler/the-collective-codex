@@ -4,15 +4,38 @@ import { access, mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/pro
 import path from 'node:path';
 import { sheets } from '../card-canon.js';
 
-const sourceRoot=path.resolve(process.argv[2]||'recovered-sheets');
+const argv=process.argv.slice(2);
+const positional=argv.filter(arg=>!arg.startsWith('--'));
+const flag=name=>{
+  const match=argv.find(arg=>arg===`--${name}`||arg.startsWith(`--${name}=`));
+  if(match===undefined)return undefined;
+  const value=match.includes('=')?match.slice(match.indexOf('=')+1):'';
+  if(!value)throw new Error(`--${name} needs a value, for example --${name}=184.`);
+  return value;
+};
+const tileSize=(value,label)=>{
+  const size=Number(value);
+  if(!Number.isInteger(size)||size<1)throw new Error(`${label} must be a positive integer; received "${value}".`);
+  return size;
+};
+
+const sourceRoot=path.resolve(positional[0]||'recovered-sheets');
 const atlasDir='assets/card-art-atlas.base64';
 const atlasPath='assets/card-art-atlas.avif';
 const sourceManifestPath='assets/card-art-source-manifest.json';
 const columns=21;
 const rows=54;
-const tileWidth=80;
-const tileHeight=80;
 const cropSize=184;
+// Tile size is a parameter so that a rebuild from full-resolution source sheets can keep the
+// whole cropSize x cropSize artwork panel instead of discarding it. Order of precedence:
+// --tile-width / --tile-height, then --tile, then ATLAS_TILE_SIZE, then the default.
+// The default is exactly 80x80 and must stay there: it is the shipped atlas geometry, and the
+// resulting SHA-256 is the contract enforced by tests/card-art-integrity.test.mjs.
+const requestedTile=flag('tile')??process.env.ATLAS_TILE_SIZE;
+const tileWidth=tileSize(flag('tile-width')??requestedTile??80,'--tile-width');
+const tileHeight=tileSize(flag('tile-height')??requestedTile??80,'--tile-height');
+if(tileWidth>cropSize||tileHeight>cropSize)console.warn(`Warning: tile ${tileWidth}x${tileHeight} is larger than the ${cropSize}x${cropSize} source crop, so the atlas will be upscaled.`);
+console.log(`Building a ${columns*tileWidth}x${rows*tileHeight} atlas from ${cropSize}x${cropSize} crops at ${tileWidth}x${tileHeight} per tile.`);
 const xCenters=[158,384,610,836,1062,1288,1514];
 const yCenters=[238,492,731];
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');

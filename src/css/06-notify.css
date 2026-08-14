@@ -1,0 +1,79 @@
+/* ============================================================================
+   06-notify — the four notification channels (§3.6). They never share a look,
+   because they never share a job: inline error, contextual reason, toast,
+   dialog.
+   ========================================================================== */
+
+/* ---- Toasts ------------------------------------------------------------- */
+.toastHost {
+  position: fixed; right: var(--sp-5); bottom: var(--sp-5); z-index: 120;
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  max-width: min(380px, 92vw);
+}
+body[data-chrome="play"] .toastHost {
+  left: 50%; right: auto; transform: translateX(-50%);
+  bottom: 108px; align-items: center;
+}
+.toast {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-3); border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--info);
+  color: var(--text); font: var(--t-300)/1.45 var(--font-sans);
+  box-shadow: var(--e-lift);
+  animation: toastIn calc(180ms * var(--motion-scale) + 1ms) var(--ease-out);
+}
+.toast-warn { border-left-color: var(--gold); }
+.toast.leaving { opacity: 0; transform: translateY(-4px); transition: opacity calc(140ms * var(--motion-scale)), transform calc(140ms * var(--motion-scale)); }
+.toastText { flex: 1; min-width: 0; }
+.toastUndo {
+  padding: var(--sp-2) var(--sp-3); cursor: pointer;
+  background: 0; border: 1px solid var(--edge-gold); color: var(--gold);
+  font: var(--t-200)/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+}
+.toastClose { padding: var(--sp-2); cursor: pointer; color: var(--text-dim); font-size: var(--t-400); }
+.toastClose:hover { color: var(--text); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---- Dialogs ------------------------------------------------------------ */
+.dialogHost { position: fixed; inset: 0; z-index: 150; display: grid; place-items: center; padding: var(--sp-5); }
+/* The one permitted blur in the product, and it is optional: a 2px dim behind
+   a modal. Nothing else in this stylesheet uses backdrop-filter. */
+.dialogScrim { position: absolute; inset: 0; background: rgba(3, 6, 14, .78); }
+.dialogPanel {
+  position: relative; z-index: 1;
+  width: min(560px, 92vw); max-height: 86vh; overflow: auto;
+  padding: var(--sp-6);
+  background: var(--surface-1);
+  border: 1px solid var(--edge-gold);
+  box-shadow: var(--e-scene);
+}
+/* A gold rule across the top of every modal: the same authority edge the
+   topbar and the board frame wear. */
+.dialogPanel::before {
+  content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gold);
+}
+.dialogTitle { font: 600 var(--t-700)/1.25 var(--font-sans); margin: 0 0 var(--sp-3); letter-spacing: -.01em; }
+.dialogBody { font: var(--t-400)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-5); }
+.dialogActions { display: flex; gap: var(--sp-3); justify-content: flex-end; flex-wrap: wrap; margin-top: var(--sp-5); }
+
+.keyTable { width: 100%; border-collapse: collapse; font: var(--t-300)/1.6 var(--font-mono); }
+.keyTable th { text-align: left; padding: 6px 16px 6px 0; color: var(--gold); white-space: nowrap; vertical-align: top; }
+.keyTable td { padding: 6px 0; color: var(--text-dim); }
+.discardList {
+  margin: 0; padding-left: var(--sp-5); max-height: 40vh; overflow: auto;
+  font: var(--t-300)/1.7 var(--font-mono); color: var(--text-dim);
+}
+
+/* ---- Popovers (glossary terms) ------------------------------------------ */
+.popoverHost { position: fixed; inset: 0; z-index: 140; pointer-events: none; }
+.popover {
+  position: absolute; pointer-events: auto; width: min(320px, 88vw);
+  padding: var(--sp-4);
+  background: var(--surface-3); border: 1px solid var(--line-strong);
+  border-top: 2px solid var(--info);
+  box-shadow: var(--e-lift);
+}
+.popoverTitle { font: 600 var(--t-400)/1.3 var(--font-sans); margin: 0 0 var(--sp-2); color: var(--gold); }
+.popoverBody { font: var(--t-300)/1.6 var(--font-sans); margin: 0; color: var(--text); }
+.popoverLink { display: inline-block; margin-top: var(--sp-3); font: var(--t-200)/1 var(--font-mono); color: var(--info); }

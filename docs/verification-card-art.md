@@ -19,5 +19,5 @@ Acceptance invariants:
 - reconstructed byte length 2,107,628
 - reconstructed SHA-256 `2ec9c9dd8501a6bcd63ddd660aee2c99f4e86a0bf2d7481a0a7c44437658fa83`
 - AVIF is used consistently by canon data, styles, provenance, exporter, and build
-- standalone exports are 1500×2100 PNG
+- standalone exports are 1500×2100 PNG (frame native; the art panel is composited from an 80×80 atlas tile)
 - production static build and match tests succeed

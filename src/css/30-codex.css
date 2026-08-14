@@ -1,0 +1,106 @@
+/* ============================================================================
+   30-codex — the browser. Rail (grouped into doctrine bands), toolbar, the
+   windowed grid, and the detail drawer.
+
+   GEOMETRY CONTRACT — these three numbers are duplicated in
+   src/screen-codex.js and must be changed in both places or rows overlap:
+     row height  --tile-h 272px + 14px gap  ==  ROW_H 286
+     gap         14px                       ==  GAP 14
+     columns     var(--cols)                <-  set by JS from MIN_TILE 176
+   ========================================================================== */
+
+.codexScreen { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 0; }
+.codexScreen.detailOpen { grid-template-columns: 236px minmax(0, 1fr) 384px; }
+
+/* ---- Division rail ------------------------------------------------------
+   The rail is the legend for the doctrine bands: a 3px band stripe on the
+   left of every row means the six categories are learnable in one glance,
+   and the ✦NN stamp is what actually names the division. */
+.divisionRail {
+  position: static; height: 100%; min-height: 0; overflow: auto;
+  background: var(--surface-1); border-right: 1px solid var(--line-hi);
+}
+.divisionRailList { display: flex; flex-direction: column; }
+.railBtn {
+  display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: var(--sp-3);
+  width: 100%; min-height: 40px; padding: var(--sp-2) var(--sp-4);
+  background: 0; border: 0; border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--div-band, transparent);
+  color: var(--text-dim); text-align: left; cursor: pointer;
+  font: var(--t-300)/1.35 var(--font-sans);
+}
+.railBtn:hover { background: var(--surface-2); color: var(--text); }
+.railBtn .divisionIcon { width: 24px; height: 24px; font-size: var(--t-300); }
+.railName { display: flex; flex-direction: column; min-width: 0; }
+.railName small { font: var(--t-200)/1.4 var(--font-mono); letter-spacing: .1em; color: var(--div-ink); }
+.railBtn.active {
+  color: var(--text); background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.railBtn.active .railName { font-weight: 500; }
+
+/* ---- Toolbar ------------------------------------------------------------ */
+.codexMain { display: flex; flex-direction: column; min-height: 0; padding: var(--sp-5) var(--sp-6); gap: var(--sp-4); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); }
+.toolbarHead { min-width: 260px; }
+.toolbarControls { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: flex-end; }
+.filterChips { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+/* ---- The windowed grid --------------------------------------------------
+   MO-9: no entrance animation. The grid appears; it does not cascade in. */
+.codexScroller { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.codexRows { position: relative; }
+.codexRow {
+  position: absolute; top: 0; left: 0; right: 0; height: var(--tile-h);
+  display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 14px;
+  will-change: transform;
+}
+
+.emptyState { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-6) 0; }
+.emptyLead { font: var(--t-600)/1.5 var(--font-sans); margin: 0; }
+.emptyHint { font: var(--t-300)/1.5 var(--font-mono); color: var(--text-dim); margin: var(--sp-4) 0 0; }
+.emptyList { margin: 0; padding-left: var(--sp-5); font: var(--t-300)/1.7 var(--font-sans); color: var(--text-dim); }
+
+/* ---- Detail drawer — card-lg, the complete record ----------------------- */
+.cardDetail {
+  display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto;
+  background: var(--surface-1); border-left: 1px solid var(--edge-gold);
+}
+.detailHead {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-4); background: var(--surface-1); border-bottom: 1px solid var(--line);
+}
+.detailNav { display: flex; align-items: center; gap: var(--sp-3); }
+.detailPosition { font: var(--t-200)/1 var(--font-mono); letter-spacing: .1em; color: var(--text-dim); }
+.detailBody { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-5); }
+.detailArt {
+  --art-size: 160px;
+  /* Percentage padding resolves against the CONTAINING BLOCK, not the element,
+     so a narrowed plate must state both numbers in px: 232 = 160 + 2 x 36. */
+  width: 232px; margin-inline: auto;
+  padding-inline: 36px; padding-block: var(--sp-5);
+  height: calc(var(--art-size) + var(--sp-5) * 2);
+  border: 1px solid var(--line-hi);
+}
+.detailName { font: 600 var(--t-700)/1.25 var(--font-sans); margin: var(--sp-2) 0 0; letter-spacing: -.01em; }
+.detailSub {
+  margin: 0; font: 700 var(--t-200)/1.5 var(--font-mono);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--div-ink);
+}
+.detailRules {
+  margin: var(--sp-3) 0; padding: var(--sp-4);
+  background: var(--surface-2); border-left: 2px solid var(--div-edge);
+  font: var(--t-500)/1.6 var(--font-sans);
+}
+.detailSpecs { display: flex; flex-direction: column; margin: 0; }
+.specRow { display: grid; grid-template-columns: 112px 1fr; gap: var(--sp-3); padding: 7px 0; border-bottom: 1px solid var(--line); }
+.specRow dt { margin: 0; font: var(--t-200)/1.5 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); }
+.specRow dd { margin: 0; font: var(--t-300)/1.5 var(--font-sans); }
+.detailSubhead { margin: var(--sp-5) 0 var(--sp-2); font: 600 var(--t-400)/1.3 var(--font-sans); color: var(--gold); }
+.detailBehaviour p { margin: 0 0 var(--sp-2); font: var(--t-300)/1.6 var(--font-sans); }
+.detailFootnote { color: var(--text-dim); }
+.detailFoot {
+  position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: var(--sp-3);
+  padding: var(--sp-4); background: var(--surface-1); border-top: 1px solid var(--line);
+}

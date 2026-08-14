@@ -1,0 +1,75 @@
+/* ============================================================================
+   00-fonts — self-hosted typefaces. Zero network requests.
+   ----------------------------------------------------------------------------
+   Two families, permanently (VD-1): Space Grotesk for language, JetBrains Mono
+   for every number. Both are the Latin-subset *variable* files as shipped by
+   the upstream projects, so weights 400–700 cost two files and 53.7 KB total
+   (budget: 2 files / 60 KB). The Google Fonts @import that used to sit on
+   styles.css:1 is gone — it was render-blocking, cross-origin, and failed
+   outright in a sandboxed browser, which meant nobody had ever seen this
+   product in its intended typeface.
+
+   No-shift swap: each family declares a metric-matched fallback face. The
+   override values were measured, not guessed — Chromium canvas
+   `fontBoundingBoxAscent/Descent` and the advance width of a representative
+   sentence, at 100px, web font vs. fallback:
+
+     Space Grotesk   ascent 0.98em  descent 0.29em  sentence 3181.23px
+     Arial           ascent 0.91em  descent 0.21em  sentence 2985.11px
+       size-adjust   3181.23 / 2985.11 = 106.5%
+       ascent        0.98 / 1.065 = 92.0%   descent 0.29 / 1.065 = 27.2%
+
+     JetBrains Mono  ascent 1.02em  descent 0.30em  advance 0.600em
+     fallback mono   ascent 0.93em  descent 0.24em  advance 0.602em
+       size-adjust   99.7% -> 100%   ascent 102%   descent 30%
+
+   line-gap-override is pinned to 0% on both, because both web faces carry a
+   zero line gap; without it the fallback's gap changes every line box height
+   on the page for the duration of the swap.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("assets/fonts/space-grotesk-latin-var.woff2") format("woff2-variations"),
+       url("assets/fonts/space-grotesk-latin-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("assets/fonts/jetbrains-mono-latin-var.woff2") format("woff2-variations"),
+       url("assets/fonts/jetbrains-mono-latin-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Metric-matched fallbacks — used only during the swap window and on the rare
+   machine that refuses the WOFF2. They shift nothing. */
+@font-face {
+  font-family: "Grotesk Metrics";
+  src: local("Arial"), local("Helvetica Neue"), local("Segoe UI"),
+       local("Roboto"), local("Liberation Sans"), local("Nimbus Sans");
+  size-adjust: 106.5%;
+  ascent-override: 92%;
+  descent-override: 27.2%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Mono Metrics";
+  src: local("Menlo"), local("Consolas"), local("DejaVu Sans Mono"),
+       local("Liberation Mono"), local("Courier New");
+  size-adjust: 100%;
+  ascent-override: 102%;
+  descent-override: 30%;
+  line-gap-override: 0%;
+}

@@ -1,0 +1,81 @@
+/* ============================================================================
+   34-responsive — three breakpoints, and only where the layout genuinely
+   breaks. Loaded last so it wins over every screen layer.
+   ========================================================================== */
+
+@media (max-width: 1240px) {
+  .codexScreen.detailOpen { grid-template-columns: 210px minmax(0, 1fr); }
+  .codexScreen.detailOpen .cardDetail { position: fixed; inset: 0; z-index: 130; border-left: 0; }
+  .deckScreen { grid-template-columns: minmax(0, 1fr) 330px; }
+  .mStage { grid-template-columns: minmax(0, 1fr) 250px; }
+  .codexMain, .deckPool { padding: var(--sp-5) var(--sp-5); }
+  .doorHero { grid-template-columns: 200px minmax(0, 1fr); gap: var(--sp-5); }
+}
+
+@media (max-width: 900px) {
+  /* Below 900 the app reverts to page scrolling, so each windowed grid needs
+     an explicit height — an unconstrained scroller would size its row pool to
+     the entire canon again. */
+  #app { height: auto; min-height: 100dvh; overflow: visible; }
+  .appMain { display: block; }
+  .screen { min-height: 60dvh; }
+  .codexScroller, .vgrid { height: 68dvh; flex: none; }
+
+  .topbar { height: auto; grid-template-columns: 1fr auto; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
+  .topbar nav { grid-column: 1 / -1; justify-self: stretch; overflow-x: auto; scrollbar-width: none; }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .navLink { white-space: nowrap; }
+  .brand small { display: none; }
+
+  .codexScreen, .codexScreen.detailOpen { grid-template-columns: 1fr; }
+  .divisionRail { max-height: 172px; border-right: 0; border-bottom: 1px solid var(--line-hi); }
+  .divisionRailList { flex-direction: row; overflow: auto; }
+  .railBtn { min-width: 172px; border-bottom: 0; border-right: 1px solid var(--line); border-left-width: 3px; }
+
+  .deckScreen { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+  .deckRail { height: auto; max-height: none; border-left: 0; border-top: 1px solid var(--edge-gold); }
+  .deckList { max-height: 44dvh; }
+
+  /* The one-viewport rule cannot hold on a phone. The board becomes a single
+     scrolling column and the hand docks to the bottom of the screen. */
+  .matchScreen { display: flex; flex-direction: column; height: auto; min-height: 100dvh; overflow: visible; }
+  body[data-chrome="play"] { overflow: auto; }
+  .mStage { display: block; }
+  .mLog { display: none; }
+  .mBoard { display: flex; flex-direction: column; margin: var(--sp-2); }
+  .hud { gap: var(--sp-3); padding: var(--sp-3); }
+  .coreBlock { flex: 1 1 100%; min-width: 0; }
+  .coreBar { min-width: 0; }
+  .hudCounts { margin-left: 0; flex-wrap: wrap; }
+  .hudBias { flex-basis: 100%; }
+  .pipRows { width: 100%; gap: var(--sp-4); }
+  .laneRow { grid-template-columns: 1fr; grid-auto-rows: min-content; }
+  .laneSide { min-height: 68px; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
+  .laneRowPlayer .laneSide { justify-content: flex-start; }
+  .seam { grid-template-columns: 1fr; }
+  .seamCell { border-right: 0; border-bottom: 1px solid var(--line-hi); }
+  .mHand { position: sticky; bottom: 0; z-index: 20; flex-wrap: wrap; }
+  .handRight { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
+  .endSummary { text-align: left; }
+  .mBar { flex-wrap: wrap; }
+
+  .doorHero { grid-template-columns: 1fr; }
+  .glossaryList { grid-template-columns: 1fr; gap: var(--sp-2); }
+  .glossaryList dd { margin-bottom: var(--sp-4); }
+  .doorMain, .rulesMain { padding: var(--sp-6) var(--sp-5) var(--sp-7); }
+}
+
+@media (max-width: 560px) {
+  /* One column at phone width means a very wide tile; the crest steps up to
+     160px, which is a size the atlas is already rasterised at for the detail
+     drawer, so no new raster is created. */
+  .codexScreen .codexCard { --art-size: 160px; }
+  .codexMain, .deckPool { padding: var(--sp-4); }
+  .toolbarControls { width: 100%; }
+  .toolbarControls .field { flex: 1 1 140px; }
+  .handCard { width: 132px; }
+  .mullHand .codexCard { width: 100%; max-width: 220px; }
+  .primerItem { grid-template-columns: 1fr; gap: var(--sp-2); }
+  .analysisSplit { grid-template-columns: 1fr; }
+  .siteFooter { flex-direction: column; gap: var(--sp-2); }
+}

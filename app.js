@@ -1,89 +1,234 @@
-import { divisions, families, cards, sheets, cardById } from './card-canon.js';
-import { DECK_SIZE, LANE_NAMES, createMatch, mulligan, playCard, completePlayerTurn, getPlayability } from './match-engine.js';
-import { buildStarterDeck, filterDeckPool, loadDeckIds, saveDeckIds } from './deck-store.js';
+/* app.js — shell, routing and screen orchestration.
+ *
+ * There is no global render(). Each screen is mounted exactly once and patches
+ * its own DOM in place. `#app.innerHTML` is never assigned after boot, so the
+ * search field, the caret inside it, and the grid scroll position survive every
+ * state change (A-1 … A-4).
+ */
 
-const storage=typeof localStorage==='undefined'?null:localStorage;
-const state={
-  view:'codex',division:'all',family:'all',query:'',selected:cards[0],
-  deckIds:loadDeckIds(storage,cards),deckFilters:{division:'all',family:'all',costBand:'all',query:''},
-  match:null,selectedHandIndex:null,mulliganSelection:new Set(),selectedBattleCard:null,notice:''
-};
-const app=document.querySelector('#app');
-const divMap=new Map(divisions.map(d=>[d.id,d]));
-const familyMark={Specimen:'◉',Weapon:'⚔',Monster:'◆',Knight:'♜',Warrior:'▲',Magician:'✦',Environment:'⌁',Disaster:'⚠',Defense:'⬡',Base:'▣',Item:'◇',Operative:'◎',Action:'➤',Trap:'⌖',Reaction:'↶',Response:'↳',Law:'§',Spell:'✧',Hex:'⛧',Plague:'☣',Virus:'⌬',Dragon:'♢',Deity:'☀',Android:'◈',God:'✹',Ruler:'♛',Ritual:'⟲',World:'◌'};
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-const artStyle=c=>`--art-x:${c.art.col};--art-y:${c.art.row};--division:${divMap.get(c.divisionId).color}`;
-const icon=(d,large=false)=>`<span class="divisionIcon ${large?'large':''}" style="--division:${d.color}">${d.icon}</span>`;
-const costs=c=>`<span class="cost command"><i>C</i>${c.cost.command}</span><span class="cost insight"><i>I</i>${c.cost.insight}</span><span class="cost essence"><i>E</i>${c.cost.essence}</span>`;
-const totalCost=c=>c.cost.command+c.cost.insight+c.cost.essence;
+import { h, delegate, createStore, router, settings, applyMotion, storageAvailable, pad2 } from './src/core.js';
+import { cards, cardById, divisions, gateAtlas } from './src/cards.js';
+import { mountUI, toast, announce, dialogOpen, closeDialog, hidePopover, popoverOpen } from './src/ui.js';
+import { installTermHandler } from './src/terms.js';
+import { createCodex } from './src/screen-codex.js';
+import { createDeck } from './src/screen-deck.js';
+import { createMatchScreen } from './src/screen-match.js';
+import { createHome, createRules, runPrimer } from './src/screen-static.js';
+import { buildRivalDeck } from './deck-store.js';
+import { preMatchDialog } from './src/prematch.js';
+import * as engine from './match-engine.js';
 
-function card(c,compact=false,interaction={type:'codex'}){
-  const d=divMap.get(c.divisionId),type=interaction.type||'codex';
-  const attrs=type==='codex'?`data-card="${c.id}"`:type==='deck-add'?`data-deck-add="${c.id}"`:type==='hand'?`data-hand="${interaction.index}"`:type==='mulligan'?`data-mulligan="${interaction.index}"`:'data-static="true"';
-  const selected=type==='codex'?state.selected?.id===c.id:Boolean(interaction.selected);
-  return `<button class="codexCard ${compact?'compact':''} ${selected?'selected':''}" ${attrs} style="${artStyle(c)}"><div class="frameCorner tl"></div><div class="frameCorner tr"></div><header class="cardHead"><span class="familyMark">${familyMark[c.family]||'✦'}</span><div><small>${esc(d.name)} · ${esc(c.family)}</small><strong>${esc(c.name)}</strong></div><b class="power">${c.power}</b></header><div class="cardArt" role="img" aria-label="Artwork for ${esc(c.name)}"></div><div class="cardMeta"><span>${esc(c.rarity)}</span><span>${esc(c.setLabel)}</span></div><section class="rules"><div class="ruleTop"><b>${esc(c.family)}</b><span>${costs(c)}</span></div>${compact?'':`<p>${esc(c.rulesText)}</p><div class="tags">${c.keywords.slice(0,3).map(k=>`<span>${esc(k)}</span>`).join('')}</div>`}</section><footer><span>${esc(c.id)}</span><span>${esc(c.timing)} · ${esc(c.targeting)}</span></footer></button>`;
+const app = document.querySelector('#app');
+
+const store = createStore({
+  codex: { d: 'all', f: 'all', r: 'all', c: 'all', q: '', sort: 'division' },
+  deck: { d: 'all', f: 'all', c: 'all', q: '' },
+  match: null,
+});
+
+applyMotion();
+gateAtlas();
+
+/* ---------- shell ---------- */
+
+const skipLink = h('a', { class: 'skipLink', href: '#main' }, 'Skip to main content');
+const navButtons = [
+  ['home', 'Home', '#/'],
+  ['codex', 'Codex', '#/codex'],
+  ['deck', 'Doctrine', '#/deck'],
+  ['match', 'Battlefield', '#/match'],
+  ['rules', 'Rules', '#/rules'],
+].map(([view, label, href]) => h('a', { class: 'navLink', href, dataset: { view } }, label));
+
+const topbar = h('header', { class: 'topbar', role: 'banner' },
+  h('a', { class: 'brand', href: '#/' },
+    h('b', { 'aria-hidden': 'true' }, '✦'),
+    h('span', {}, h('strong', {}, 'THE COLLECTIVE CODEX'), h('small', {}, 'TWENTY-ONE DIVISIONS · INFINITE OUTCOMES')),
+  ),
+  h('nav', { 'aria-label': 'Primary' }, ...navButtons),
+  h('div', { class: 'topbarRight' },
+    h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'keys' } }, 'Keys ', h('kbd', {}, '?')),
+  ),
+);
+
+const main = h('main', { id: 'main', class: 'appMain', tabindex: '-1' });
+const siteFooter = h('footer', { class: 'siteFooter', role: 'contentinfo' },
+  h('span', {}, 'COLLECTIVE AI INC · ARCHITECTING A HUMANE FUTURE'),
+  h('span', {}, '1,134 cards · 54 sheets · 28 families · 21 divisions'),
+  h('a', { href: '#/rules' }, 'Rules and glossary'),
+);
+
+app.append(skipLink, topbar, main, siteFooter);
+mountUI(document.body);
+installTermHandler(document.body);
+
+/* ---------- screens ---------- */
+
+/** Build a match. `options` comes from the pre-match dialog (difficulty, seed). */
+function launch(ids, options = {}) {
+  const playerDeck = ids.map(id => cardById.get(id)).filter(Boolean);
+  // buildRivalDeck mirrors the player's own profile over the FULL canon. The old
+  // three-division starter pool was a 96/4 structural handicap.
+  const rivalDeck = buildRivalDeck(cards, playerDeck).map(id => cardById.get(id)).filter(Boolean);
+  try {
+    const match = engine.createMatch({
+      playerDeck, rivalDeck,
+      seed: options.seed ?? (Date.now() >>> 0),
+      difficulty: options.seed ? undefined : (options.difficulty || settings.get('difficulty') || undefined),
+    });
+    matchScreen.setMatch(match);
+    /* force: the URL may already be #/match — arriving there without a match
+       redirects to the deck builder — so the board has to be mounted on a
+       resolved-view change the URL cannot express. */
+    router.go({ view: 'match', id: null, query: {} }, { force: true });
+  } catch (error) {
+    console.error('[app] could not start match', error);
+    toast(error.message, { kind: 'warn' });
+  }
 }
 
-function shell(body){return `<header class="topbar"><button class="brand" data-view="overview"><b>✦</b><span><strong>THE COLLECTIVE CODEX</strong><small>TWENTY-ONE DIVISIONS · INFINITE OUTCOMES</small></span></button><nav>${['overview','codex','battlefield'].map(v=>`<button data-view="${v}" class="${state.view===v?'active':''}">${v}</button>`).join('')}</nav><div class="online">● 1,134 CARD CANON ONLINE</div></header>${body}<footer class="siteFooter"><span>COLLECTIVE AI INC · ARCHITECTING A HUMANE FUTURE</span><span>CANON BUILD 1.0 · EMBEDDED ART ATLAS</span></footer>`}
-
-function overview(){return shell(`<main class="overview"><section class="hero"><div class="heroCopy"><span class="eyeline">LIVING DIGITAL CARD GAME</span><h1>1,134 cards.<br>Every one alive.</h1><p>All fifty-four selection sheets are mapped into a single canonical card system: division identity, family treatment, rules text, resource economy and embedded artwork stay synchronized from Codex browser to battlefield.</p><div class="actions"><button class="primary" data-view="codex">Browse the full Codex</button><button data-view="battlefield">Enter battlefield</button></div></div><div class="heroFan">${cards.filter((_,i)=>i%54===0).slice(0,7).map((c,i)=>`<div style="--fan:${i-3}">${card(c,true,{type:'static'})}</div>`).join('')}</div></section><section class="metrics"><article><strong>1,134</strong><span>Canonical cards</span></article><article><strong>54</strong><span>Embedded art sheets</span></article><article><strong>28</strong><span>Card families</span></article><article><strong>21</strong><span>Division identities</span></article></section><section class="divisionSection"><div class="sectionTitle"><span>LOCKED DIVISION SYSTEM</span><h2>Twenty-one doctrines, one Codex.</h2></div><div class="divisionGrid">${divisions.map(d=>`<button data-division="${d.id}" style="--division:${d.color}"><header><span>${String(d.id).padStart(2,'0')}</span>${icon(d,true)}</header><strong>${d.name}</strong><p>${d.doctrine}</p><footer>${d.keywords.map(k=>`<span>${k}</span>`).join('')}</footer></button>`).join('')}</div></section></main>`)}
-
-function codex(){const q=state.query.trim().toLowerCase();const filtered=cards.filter(c=>(state.division==='all'||c.divisionId===Number(state.division))&&(state.family==='all'||c.family===state.family)&&(!q||`${c.name} ${c.family} ${divMap.get(c.divisionId).name} ${c.rulesText} ${c.id}`.toLowerCase().includes(q)));return shell(`<main class="codex"><aside class="divisionRail"><button data-division="all" class="${state.division==='all'?'active':''}"><span class="divisionIcon">∞</span><span>ALL DIVISIONS</span></button>${divisions.map(d=>`<button data-division="${d.id}" class="${String(state.division)===String(d.id)?'active':''}" style="--division:${d.color}">${icon(d)}<span><small>${String(d.id).padStart(2,'0')}</small>${d.name}</span></button>`).join('')}</aside><section class="codexMain"><header class="toolbar"><div><span>CANONICAL CARD REGISTRY</span><h1>${filtered.length.toLocaleString()} cards visible</h1><p>Each card maps to one embedded atlas tile and one finalized rules record.</p></div><div class="toolbarControls"><label>SEARCH<input id="search" value="${esc(state.query)}" placeholder="Name, rule, ID or division"></label><label>FAMILY<select id="family"><option value="all">All card families</option>${families.map(f=>`<option ${state.family===f?'selected':''}>${f}</option>`).join('')}</select></label></div></header><div class="summary"><span>${sheets.length} source sheets</span><span>1,134 art coordinates</span><span>1500×2100 export masters</span><span>Hybrid division × family frames</span></div><div class="cards">${filtered.map(c=>card(c)).join('')}</div></section></main>`)}
-
-function deckBuilder(){
-  const f=state.deckFilters,filtered=filterDeckPool(cards,f),deckCards=state.deckIds.map(id=>cardById.get(id)).filter(Boolean),ready=deckCards.length===DECK_SIZE;
-  return shell(`<main class="battlePage deckPage"><header class="battleHeading"><div><span>LOCAL MATCH · DECK CONSTRUCTION</span><h1>Build your doctrine.</h1><p class="battleSub">Choose exactly ${DECK_SIZE} unique cards from the full canon. Your active build is saved locally as you edit.</p></div><button id="starterDeck">Restore starter doctrine</button></header>${state.notice?`<div class="matchNotice">${esc(state.notice)}</div>`:''}<section class="deckBuilder"><aside class="activeDeck"><header><div><span>ACTIVE DECK</span><strong>${deckCards.length} / ${DECK_SIZE}</strong></div><button id="clearDeck">Clear</button></header><div class="deckList">${deckCards.length?deckCards.map((c,i)=>`<button data-deck-remove="${i}" title="Remove ${esc(c.name)}"><span>${String(i+1).padStart(2,'0')}</span><b>${esc(c.name)}</b><small>${esc(c.family)} · ${costs(c)}</small></button>`).join(''):'<div class="emptyDeck">Select cards from the canon to rebuild this doctrine.</div>'}</div><div class="deckLaunch"><p>Rival doctrine uses the same 30-card, 20-Core and resource rules, with a visible Kinetic Edge / Terra Axis / Gaia Synthesis preference.</p><button class="primary" id="startMatch" ${ready?'':'disabled'}>${ready?'Start local match':`Add ${DECK_SIZE-deckCards.length} more card${DECK_SIZE-deckCards.length===1?'':'s'}`}</button></div></aside><section class="deckPool"><header class="deckFilters"><label>SEARCH<input id="deckSearch" value="${esc(f.query)}" placeholder="Name, rule, ID or division"></label><label>DIVISION<select id="deckDivision"><option value="all">All divisions</option>${divisions.map(d=>`<option value="${d.id}" ${String(f.division)===String(d.id)?'selected':''}>${String(d.id).padStart(2,'0')} · ${esc(d.name)}</option>`).join('')}</select></label><label>FAMILY<select id="deckFamily"><option value="all">All families</option>${families.map(name=>`<option ${f.family===name?'selected':''}>${name}</option>`).join('')}</select></label><label>COST<select id="deckCost"><option value="all">Any cost</option><option value="0-3" ${f.costBand==='0-3'?'selected':''}>0–3 total</option><option value="4-6" ${f.costBand==='4-6'?'selected':''}>4–6 total</option><option value="7+" ${f.costBand==='7+'?'selected':''}>7+ total</option></select></label></header><div class="deckResults"><span>${filtered.length.toLocaleString()} cards match</span><span>Click a card to add it</span></div><div class="deckCardGrid">${filtered.map(c=>card(c,true,{type:'deck-add',selected:state.deckIds.includes(c.id)})).join('')}</div></section></section></main>`);
+async function startMatch(ids) {
+  const deckCards = ids.map(id => cardById.get(id)).filter(Boolean);
+  const options = await preMatchDialog({ deckCards });
+  if (!options) return;
+  launch(ids, options);
 }
 
-function mulliganView(){
-  const m=state.match,hand=m.players.player.hand,selected=state.mulliganSelection;
-  return shell(`<main class="battlePage"><header class="battleHeading"><div><span>OPENING HAND · ROUND 01</span><h1>Commit your first five.</h1><p class="battleSub">Select any cards you want to replace once, or keep the hand and begin immediately.</p></div><button id="resetMatch">Return to deck builder</button></header><section class="openingPanel"><div class="openingCores"><span>YOUR CORE <b>${m.players.player.core}</b></span><span>RIVAL CORE <b>${m.players.rival.core}</b></span></div><div class="openingHand">${hand.map((c,i)=>card(c,true,{type:'mulligan',index:i,selected:selected.has(i)})).join('')}</div><div class="openingActions"><button id="keepHand">Keep hand</button><button class="primary" id="mulliganSelected">${selected.size?`Replace ${selected.size} selected`:'Begin match'}</button></div><p class="openingRule">The rival performs the same one-time mulligan automatically, replacing up to two cards costing 7+ total resources.</p></section></main>`);
+const deckScreen = createDeck({ store, router, onStart: startMatch });
+const codexScreen = createCodex({ store, router, deck: deckScreen.api });
+const matchScreen = createMatchScreen({
+  store,
+  onExit: () => { matchScreen.clear(); router.go({ view: 'deck', id: null, query: {} }); },
+  onRematch: () => launch(deckScreen.api.ids()),
+  onReplaySeed: (seed) => launch(deckScreen.api.ids(), { seed }),
+  onEditDoctrine: () => router.go({ view: 'deck', id: null, query: {} }),
+});
+const homeScreen = createHome({ deck: deckScreen.api, hasMatch: () => matchScreen.hasMatch() });
+const rulesScreen = createRules();
+
+const screens = { home: homeScreen, codex: codexScreen, deck: deckScreen, match: matchScreen, rules: rulesScreen };
+for (const key in screens) {
+  screens[key].el.hidden = true;
+  main.append(screens[key].el);
+  screens[key].mount();
 }
 
-function unitTile(unit,side){const c=unit.card;return `<button class="battleUnit ${unit.exhausted?'exhausted':''}" data-inspect="${c.id}" style="${artStyle(c)}"><div class="battleUnitArt"></div><span>${side==='rival'?'RIVAL':'ALLY'} · ${esc(c.family)}</span><b>${esc(c.name)}</b><footer><strong>PWR ${unit.power}</strong>${unit.weaponBonus?`<small>WEAPON +${unit.weaponBonus}</small>`:''}${unit.infected?'<small>INFECTED</small>':''}${unit.exhausted?'<small>EXHAUSTED</small>':''}</footer></button>`;}
-function supportChip(s,side){const hidden=side==='rival'&&s.card.family==='Trap'&&s.faceDown;return `<button class="supportChip ${s.disabled?'disabled':''}" ${hidden?'disabled':`data-inspect="${s.card.id}"`}><span>${hidden?'SET TRAP':esc(s.card.family)}</span><b>${hidden?'HIDDEN':esc(s.card.name)}</b>${s.counters?`<small>CHANNEL ${s.counters}/3</small>`:''}${s.disabled?'<small>DISABLED</small>':''}</button>`;}
-function sideLane(p,laneIndex,side){const lane=p.lanes[laneIndex];return `<div class="laneSupports">${lane.supports.map(s=>supportChip(s,side)).join('')}</div><div class="laneUnits">${lane.units.length?lane.units.map(u=>unitTile(u,side)).join(''):`<span class="laneEmpty">${side==='rival'?'Rival lane open':'Your lane open'}</span>`}</div>`;}
-function inspector(){const c=state.selectedBattleCard;if(!c)return '<div class="battleInspector empty">Select any visible unit, support, or hand card to inspect its canonical rule text.</div>';const d=divMap.get(c.divisionId);return `<div class="battleInspector" style="--division:${d.color}"><div>${icon(d)}<span><small>${esc(d.name)} · ${esc(c.family)}</small><strong>${esc(c.name)}</strong></span></div><p>${esc(c.rulesText)}</p><footer>${costs(c)}<b>PWR ${c.power}</b><span>${esc(c.timing)} · ${esc(c.targeting)} · ${esc(c.duration)}</span></footer></div>`;}
+deckScreen.api.onChange(() => { codexScreen.refreshDeckState(); });
 
-function matchBoard(){
-  const m=state.match,p=m.players.player,r=m.players.rival,selectedIndex=state.selectedHandIndex,selectedCard=selectedIndex==null?null:p.hand[selectedIndex];
-  const laneMarkup=LANE_NAMES.map((name,i)=>{const play=selectedCard?getPlayability(m,'player',selectedIndex,i):{ok:false,reason:'Select a hand card'};return `<article class="liveLane"><header><b>${name}</b><span>${r.lanes[i].units.length} rival ÷ ${p.lanes[i].units.length} allied</span></header><div class="rivalZone">${sideLane(r,i,'rival')}</div><div class="laneCommand"><span>CONTESTED ZONE</span><button data-play-lane="${i}" ${play.ok?'':'disabled'} title="${esc(play.reason||'Play selected card')}">${play.ok?'Play selected here':esc(play.reason||'Select a card')}</button></div><div class="playerZone">${sideLane(p,i,'player')}</div></article>`}).join('');
-  const hand=p.hand.map((c,i)=>card(c,true,{type:'hand',index:i,selected:i===selectedIndex})).join('');
-  const ended=m.phase==='ended';
-  return shell(`<main class="battlePage"><header class="battleHeading"><div><span>LOCAL MATCH · ROUND ${String(m.round).padStart(2,'0')}</span><h1>Three-lane doctrine war.</h1><p class="battleSub">Play cards during your main phase. “Resolve combat” fights all lanes, runs the rival turn, then refreshes your next turn.</p></div><button id="resetMatch">Reset match</button></header>${state.notice?`<div class="matchNotice">${esc(state.notice)}</div>`:''}<section class="battle liveBattle"><div class="status"><span>YOUR CORE <b>${p.core}</b></span><span>TURN <b>${m.turnCount}</b></span><span>RIVAL CORE <b>${r.core}</b></span></div><div class="resourceBar"><span>YOUR RESOURCES</span>${costs({cost:p.resources})}<small>Deck ${p.deck.length} · Hand ${p.hand.length} · Discard ${p.discard.length}</small></div><div class="liveLanes">${laneMarkup}</div><section class="liveHand"><header><div><span>DOCTRINE HAND</span><b>${selectedCard?esc(selectedCard.name):'Select a card, then choose a lane'}</b></div><button class="primary" id="endTurn" ${ended?'disabled':''}>Resolve combat · End turn</button></header><div>${hand||'<span class="laneEmpty">Your hand is empty.</span>'}</div></section><section class="battleLower">${inspector()}<div class="matchLog"><header><span>MATCH LOG</span><b>${m.log.length} events</b></header><div>${m.log.slice(0,14).map(line=>`<p>${esc(line)}</p>`).join('')}</div></div></section></section>${ended?endOverlay():''}</main>`);
+/* ---------- routing ---------- */
+
+let currentView = null;
+
+router.onChange(route => {
+  // A dialog belongs to the screen that opened it. Navigation — including a
+  // browser Back press, which no dialog can intercept — ends it. Without this,
+  // pressing Back over the pre-match dialog left a live scrim swallowing every
+  // click on whatever screen you landed on, unrecoverable short of a reload.
+  closeDialog(null);
+  hidePopover();
+
+  let view = screens[route.view] ? route.view : 'home';
+  if (view === 'match' && !matchScreen.hasMatch()) {
+    // Nothing to show: send the player where a match actually starts.
+    view = 'deck';
+    if (route.view === 'match') { announce('No match in progress. Opening doctrine construction.'); }
+  }
+  const viewChanged = currentView !== view;
+  if (currentView && viewChanged) screens[currentView].hide();
+  currentView = view;
+
+  // The shell is updated BEFORE the screen renders. These four lines are the
+  // user's only way of knowing where they are; if a screen ever throws while
+  // rendering, the nav highlight, the <title> and body[data-view] must still
+  // agree with the URL rather than silently describing the previous screen.
+  for (const link of navButtons) {
+    const active = link.dataset.view === view;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  }
+  document.body.dataset.view = view;
+  document.title = `${{ home: 'The Collective Codex', codex: 'Codex', deck: 'Doctrine', match: 'Battlefield', rules: 'Rules' }[view]} — The Collective Codex`;
+
+  // IX-6: focus moves to the new view's heading on a real navigation only.
+  screens[view].show(route, { focus: viewChanged || !router.selfNav });
+});
+
+/* ---------- global keyboard (§3.1) ---------- */
+
+let goPending = false, goTimer = null;
+
+function typing() {
+  const a = document.activeElement;
+  return a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
 }
-function endOverlay(){const m=state.match,p=m.players.player,r=m.players.rival;const title=m.winner==='player'?'Victory':m.winner==='rival'?'Defeat':'Draw';return `<div class="matchEnd"><section><span>MATCH COMPLETE</span><h2>${title}</h2><div><article><small>Your Core</small><b>${p.core}</b></article><article><small>Turns</small><b>${m.turnCount}</b></article><article><small>Rival Core</small><b>${r.core}</b></article></div><p>${m.winner==='player'?'Your doctrine broke the rival Core.':m.winner==='rival'?'The rival doctrine broke your Core.':'Both Cores collapsed in the same resolution.'}</p><footer><button id="returnCodex">Return to Codex</button><button class="primary" id="playAgain">Play again</button></footer></section></div>`;}
 
-function battlefield(){if(!state.match)return deckBuilder();if(state.match.phase==='mulligan')return mulliganView();return matchBoard();}
-function persistDeck(){saveDeckIds(storage,state.deckIds);}
-function startMatch(){if(state.deckIds.length!==DECK_SIZE){state.notice=`A legal doctrine needs exactly ${DECK_SIZE} unique cards.`;render();return;}const playerDeck=state.deckIds.map(id=>cardById.get(id)).filter(Boolean),rivalDoctrineNames=new Set(['Kinetic Edge','Terra Axis','Gaia Synthesis']),rivalDivisionIds=new Set(divisions.filter(d=>rivalDoctrineNames.has(d.name)).map(d=>d.id)),rivalPool=cards.filter(c=>rivalDivisionIds.has(c.divisionId)),rivalIds=buildStarterDeck(rivalPool),rivalDeck=rivalIds.map(id=>cardById.get(id));state.match=createMatch({playerDeck,rivalDeck,seed:Date.now()>>>0});state.selectedHandIndex=null;state.mulliganSelection=new Set();state.selectedBattleCard=null;state.notice='';render();}
+addEventListener('keydown', ev => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  // A modal owns the keyboard for as long as it is up. Escape is handled by the
+  // dialog layer itself (src/ui.js, one listener for the whole app); every other
+  // global chord — g+letter, /, ? — is inert. Letting them through navigated the
+  // shell out from under an open dialog, leaving a modal scrim over an unrelated
+  // screen with all pointer input dead: a mouse-only user was stuck until they
+  // reloaded the page.
+  if (dialogOpen()) return;
+  if (ev.key === 'Escape') {
+    if (popoverOpen()) { hidePopover(); return; }
+    if (screens[currentView]?.escape?.()) return;
+    if (typing()) document.activeElement.blur();
+    return;
+  }
+  if (typing()) return;                     // IX-3
+  if (ev.key === '/') { ev.preventDefault(); screens[currentView]?.focusSearch?.(); return; }
+  if (ev.key === '?') { ev.preventDefault(); showKeys(); return; }
+  if (goPending) {
+    const map = { c: 'codex', d: 'deck', b: 'match', r: 'rules', h: 'home' };
+    const target = map[ev.key.toLowerCase()];
+    goPending = false; clearTimeout(goTimer);
+    if (target) { ev.preventDefault(); router.go({ view: target, id: null, query: {} }); }
+    return;
+  }
+  if (ev.key === 'g') { goPending = true; goTimer = setTimeout(() => { goPending = false; }, 1200); }
+}, true);
 
-function render(){app.innerHTML=state.view==='overview'?overview():state.view==='codex'?codex():battlefield();bind();}
-function bind(){
-  document.querySelectorAll('[data-view]').forEach(el=>el.onclick=()=>{state.view=el.dataset.view;state.notice='';render()});
-  document.querySelectorAll('[data-division]').forEach(el=>el.onclick=()=>{state.division=el.dataset.division==='all'?'all':Number(el.dataset.division);state.view='codex';render()});
-  document.querySelectorAll('[data-card]').forEach(el=>el.onclick=()=>{state.selected=cardById.get(el.dataset.card);if(state.view!=='battlefield')render()});
-  const search=document.querySelector('#search');if(search)search.oninput=e=>{state.query=e.target.value;render()};
-  const fam=document.querySelector('#family');if(fam)fam.onchange=e=>{state.family=e.target.value;render()};
-  document.querySelector('#deckSearch')?.addEventListener('input',e=>{state.deckFilters.query=e.target.value;render()});
-  document.querySelector('#deckDivision')?.addEventListener('change',e=>{state.deckFilters.division=e.target.value;render()});
-  document.querySelector('#deckFamily')?.addEventListener('change',e=>{state.deckFilters.family=e.target.value;render()});
-  document.querySelector('#deckCost')?.addEventListener('change',e=>{state.deckFilters.costBand=e.target.value;render()});
-  document.querySelectorAll('[data-deck-add]').forEach(el=>el.onclick=()=>{const id=el.dataset.deckAdd;if(state.deckIds.includes(id)){state.notice='That card is already in the active doctrine.';}else if(state.deckIds.length>=DECK_SIZE){state.notice='The active doctrine is already full. Remove a card before adding another.';}else{state.deckIds.push(id);state.notice='';persistDeck();}render()});
-  document.querySelectorAll('[data-deck-remove]').forEach(el=>el.onclick=()=>{state.deckIds.splice(Number(el.dataset.deckRemove),1);state.notice='';persistDeck();render()});
-  document.querySelector('#starterDeck')?.addEventListener('click',()=>{state.deckIds=buildStarterDeck(cards);state.notice='Starter doctrine restored.';persistDeck();render()});
-  document.querySelector('#clearDeck')?.addEventListener('click',()=>{state.deckIds=[];state.notice='Doctrine cleared. Your in-progress edit is saved locally.';persistDeck();render()});
-  document.querySelector('#startMatch')?.addEventListener('click',startMatch);
-  document.querySelectorAll('[data-mulligan]').forEach(el=>el.onclick=()=>{const i=Number(el.dataset.mulligan);state.mulliganSelection.has(i)?state.mulliganSelection.delete(i):state.mulliganSelection.add(i);render()});
-  document.querySelector('#keepHand')?.addEventListener('click',()=>{state.match=mulligan(state.match,'player',[]);state.mulliganSelection.clear();render()});
-  document.querySelector('#mulliganSelected')?.addEventListener('click',()=>{state.match=mulligan(state.match,'player',[...state.mulliganSelection]);state.mulliganSelection.clear();render()});
-  document.querySelectorAll('[data-hand]').forEach(el=>el.onclick=()=>{state.selectedHandIndex=Number(el.dataset.hand);state.selectedBattleCard=state.match.players.player.hand[state.selectedHandIndex];state.notice='';render()});
-  document.querySelectorAll('[data-play-lane]').forEach(el=>el.onclick=()=>{try{state.match=playCard(state.match,'player',state.selectedHandIndex,Number(el.dataset.playLane));state.selectedHandIndex=null;state.notice='';}catch(error){state.notice=error.message;}render()});
-  document.querySelectorAll('[data-inspect]').forEach(el=>el.onclick=()=>{state.selectedBattleCard=cardById.get(el.dataset.inspect);render()});
-  document.querySelector('#endTurn')?.addEventListener('click',()=>{try{state.match=completePlayerTurn(state.match);state.selectedHandIndex=null;state.notice='';}catch(error){state.notice=error.message;}render()});
-  document.querySelector('#resetMatch')?.addEventListener('click',()=>{state.match=null;state.selectedHandIndex=null;state.mulliganSelection=new Set();state.selectedBattleCard=null;state.notice='';render()});
-  document.querySelector('#playAgain')?.addEventListener('click',()=>{state.match=null;startMatch()});
-  document.querySelector('#returnCodex')?.addEventListener('click',()=>{state.match=null;state.view='codex';state.notice='';render()});
+delegate(topbar, 'click', { keys: () => showKeys() });
+
+function showKeys() {
+  import('./src/ui.js').then(({ openDialog }) => {
+    openDialog(({ close }) => {
+      const ok = h('button', { type: 'button', class: 'btn primary', onclick: () => close(true) }, 'Close');
+      const rows = [
+        ['g then c / d / b / r', 'Go to Codex · Doctrine · Battlefield · Rules'],
+        ['/', 'Focus search'],
+        ['← ↑ → ↓', 'Move the grid cursor (the grid is one tab stop)'],
+        ['Enter / Space', 'Open the focused card'],
+        ['a', 'Add the focused card to your doctrine'],
+        ['[ / ]', 'Previous / next card in the detail panel'],
+        ['1–9, 0', 'Select a hand card in a match'],
+        ['a / s / d', 'Target Vanguard / Conduit / Flank'],
+        ['e', 'End turn (arms a confirm)'],
+        ['b', 'Read the board state aloud'],
+        ['Esc', 'Close · disarm · clear selection'],
+      ];
+      return {
+        node: h('div', { class: 'dialogPanel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'gkeys' },
+          h('h2', { class: 'dialogTitle', id: 'gkeys' }, 'Keyboard'),
+          h('table', { class: 'keyTable' }, h('tbody', {}, ...rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', {}, v))))),
+          h('div', { class: 'dialogActions' }, ok),
+        ),
+        initial: ok,
+      };
+    });
+  });
 }
-render();
-export {state};
+
+/* ---------- boot ---------- */
+
+if (!location.hash) history.replaceState(null, '', '#/');
+router.start();
+
+if (!storageAvailable()) toast('Your doctrine will not be saved in this browser.', { duration: 8000, kind: 'warn' });
+if (!settings.get('onboarded')) runPrimer();
+
+addEventListener('error', ev => console.error('[app] uncaught', ev.error || ev.message));
+
+export { store };

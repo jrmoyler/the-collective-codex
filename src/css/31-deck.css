@@ -1,0 +1,95 @@
+/* ============================================================================
+   31-deck — doctrine construction: the pool on the left, the doctrine rail
+   and its analysis on the right.
+   ========================================================================== */
+
+.deckScreen { display: grid; grid-template-columns: minmax(0, 1fr) 384px; min-height: 0; }
+
+.deckPool { display: flex; flex-direction: column; min-height: 0; padding: var(--sp-5) var(--sp-6); gap: var(--sp-4); }
+.deckPoolHead { display: flex; flex-direction: column; gap: var(--sp-4); }
+.poolMeta {
+  display: flex; flex-wrap: wrap; gap: var(--sp-5);
+  font: var(--t-200)/1.5 var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.poolCount { color: var(--gold); font-weight: 700; }
+
+/* vgrid geometry is duplicated in src/vgrid.js: rowH 262, gap 12, minTile 168 */
+.vgrid { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.vgridRows { position: relative; }
+.vgridRow {
+  position: absolute; top: 0; left: 0; right: 0; height: 250px;
+  display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 12px;
+  will-change: transform;
+}
+
+/* ---- The doctrine rail -------------------------------------------------- */
+.deckRail {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--surface-1); border-left: 1px solid var(--edge-gold);
+}
+.deckRailHead {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);
+  padding: var(--sp-4); border-bottom: 1px solid var(--line);
+}
+.deckRailActions { display: flex; gap: var(--sp-2); }
+.deckCount { display: block; margin-top: var(--sp-2); font: 700 var(--t-700)/1.1 var(--font-mono); color: var(--gold); }
+
+/* 30 segments: the deck size is a shape, not a sentence. */
+.deckProgress { display: grid; grid-template-columns: repeat(30, 1fr); gap: 2px; padding: var(--sp-3) var(--sp-4); }
+.deckSeg { height: 8px; background: var(--line-hi); }
+.deckSeg.filled { background: var(--gold); }
+
+.deckList { flex: 1; min-height: 90px; overflow: auto; padding: 0 var(--sp-4) var(--sp-4); }
+.deckGroup {
+  padding: var(--sp-4) 0 var(--sp-2); border-bottom: 1px solid var(--line);
+  font: 700 var(--t-200)/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.deckEntry {
+  display: grid; grid-template-columns: 30px 1fr 22px; align-items: center; gap: var(--sp-3);
+  width: 100%; min-height: 34px; padding: 5px 0;
+  background: 0; border: 0; border-bottom: 1px solid var(--line);
+  color: var(--text); text-align: left; cursor: pointer;
+}
+.deckEntry:hover { background: var(--surface-2); }
+.deckEntryCost {
+  padding: 3px 0; text-align: center;
+  border: 1px solid var(--line-strong); background: var(--sunken);
+  font: 700 var(--t-200)/1.3 var(--font-mono); color: var(--div-ink);
+}
+.deckEntryName { font: 500 var(--t-300)/1.4 var(--font-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deckEntryX { text-align: center; color: var(--text-dim); font: var(--t-300)/1 var(--font-mono); }
+.deckEntry:hover .deckEntryX { color: var(--danger); }
+.emptyDeck {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-5) 0; font: var(--t-300)/1.6 var(--font-sans); color: var(--text-dim);
+}
+
+/* ---- Analysis ----------------------------------------------------------- */
+.deckAnalysis { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4); border-top: 1px solid var(--line-hi); }
+.analysisTitle {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font: var(--t-200)/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim);
+}
+.analysisCurve { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; align-items: end; height: 84px; }
+.curveCol { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; height: 100%; }
+.curveBar { width: 100%; min-height: 2px; background: var(--info); }
+.curveTick, .curveNum { font: var(--t-200)/1.3 var(--font-mono); color: var(--text-dim); }
+.analysisCaption { margin: var(--sp-2) 0 0; font: var(--t-200)/1.6 var(--font-mono); color: var(--text-dim); }
+.analysisSplit { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
+.splitCell { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3); border: 1px solid var(--line-hi); background: var(--surface-2); }
+.splitCell b { font: 700 var(--t-600)/1.1 var(--font-mono); color: var(--gold); }
+.splitCell span { font: var(--t-200)/1.3 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.splitCell small { font: var(--t-200)/1.4 var(--font-sans); color: var(--text-dim); }
+.analysisSpread { display: grid; grid-template-columns: repeat(21, 1fr); gap: 2px; height: 14px; }
+.spreadSeg { background: var(--line-hi); }
+.spreadSeg[data-n="1"] { background: var(--div-edge); }
+.analysisWarnings { list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); margin: var(--sp-3) 0 0; padding: 0; }
+.analysisWarn {
+  padding: var(--sp-2) var(--sp-3); border-left: 2px solid var(--gold);
+  background: rgba(227, 183, 83, .07);
+  font: var(--t-300)/1.5 var(--font-sans); color: var(--text);
+}
+.deckLaunch { padding: var(--sp-4); border-top: 1px solid var(--line-hi); }
+.deckLaunch .btn { width: 100%; }

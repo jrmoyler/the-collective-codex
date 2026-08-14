@@ -1,0 +1,103 @@
+/* ============================================================================
+   02-divisions — the display palette for the 21 divisions.
+   ----------------------------------------------------------------------------
+   The canon hexes in card-canon.js are LOCKED and are not edited. These are
+   *derived* display tokens: canon hex -> OKLCH, lightness pinned per tier,
+   chroma clamped to a narrow band, hue preserved, gamut-mapped back to sRGB.
+   The derivation is 60 lines of arithmetic and is reproduced verbatim in
+   docs/design-system.md so a contributor can regenerate it.
+
+       tier   OKLCH L   chroma clamp   role
+       ink      0.800   [0.055,0.150]  text and glyphs on navy
+       edge     0.620   [0.070,0.165]  1px borders, art mats, rules
+       deep     0.340   [0.045,0.110]  fills only — never text
+
+   Measured result on --bg #050A18:
+       canon       2.35:1 – 19.05:1   (8.11x spread; 7 of 21 failed 4.5:1)
+       --div-ink  10.03:1 – 11.16:1   (1.11x spread; all pass 4.5:1, and all
+                                       sit below body text at 18.08:1)
+       --div-edge  4.97:1 –  5.81:1   (1.17x; all clear the 3:1 non-text floor)
+       --div-deep  1.59:1 –  1.76:1   fills; --div-ink on --div-deep is 6.26+:1
+
+   DOCTRINE BANDS (VD-12). Colour cannot identify a division even in principle:
+   ZenFlow and Quantum Ledger are 0.3 degrees apart in hue and four more pairs
+   sit inside 4 degrees. So colour is demoted to the third signal — the glyph
+   and the zero-padded index are the identifier — and at grid scale the eye is
+   given six categories instead of twenty-one. --div-band is the colour a card
+   FRAME wears; --div-ink is reserved for the glyph. A band's hue is the
+   circular mean of its members' hues.
+   ========================================================================== */
+
+:root {
+  /* The band RULE tier sits at OKLCH L 0.545 — deliberately one step below the
+     division edge tier. It is what a card frame wears, and it is the single
+     loudest colour decision in the Codex grid, so it is tuned to clear the 3:1
+     non-text floor on every surface (3.75–4.19:1 on --bg, 3.37–3.76:1 on
+     --surface-2) and to go no further. Navy still wins the grid. */
+  --band-amber:   #8E6901; --band-amber-ink:   #E0B761; --band-amber-deep:   #483402; --band-amber-wash:   #2A1D00;
+  --band-ember:   #A95153; --band-ember-ink:   #FF9F9E; --band-ember-deep:   #5E2123; --band-ember-wash:   #351314;
+  --band-verdant: #388249; --band-verdant-ink: #88D294; --band-verdant-deep: #09441B; --band-verdant-wash: #082610;
+  --band-aqua:    #087E8E; --band-aqua-ink:    #51D2E7; --band-aqua-deep:    #004049; --band-aqua-wash:    #00242A;
+  --band-violet:  #7362AD; --band-violet-ink:  #C0B0FF; --band-violet-deep:  #3A2D62; --band-violet-wash:  #201937;
+  --band-steel:   #3D72B1; --band-steel-ink:   #90C1FE; --band-steel-deep:   #113865; --band-steel-wash:   #0B2039;
+
+  /* Fallbacks for anything that renders before a division is known. */
+  --div-ink: var(--text-dim);
+  --div-edge: var(--line-hi);
+  --div-deep: var(--surface-2);
+  --div-band: var(--line-hi);
+  --div-band-ink: var(--text-dim);
+  --div-band-deep: var(--surface-2);
+  --div-band-wash: var(--surface-1);
+}
+
+[data-division="1"]{--div-ink:#E3B753;--div-edge:#A87F0F;--div-deep:#483400;--div-band:var(--band-amber);--div-band-ink:var(--band-amber-ink);--div-band-deep:var(--band-amber-deep);--div-band-wash:var(--band-amber-wash)} /* 01 Collective AI · amber · ink 10.50:1 · edge 5.37:1 */
+[data-division="2"]{--div-ink:#C0B0FF;--div-edge:#8C6EDF;--div-deep:#3C296A;--div-band:var(--band-violet);--div-band-ink:var(--band-violet-ink);--div-band-deep:var(--band-violet-deep);--div-band-wash:var(--band-violet-wash)} /* 02 ZenFlow · violet · ink 10.25:1 · edge 5.09:1 */
+[data-division="3"]{--div-ink:#76D4AB;--div-edge:#3A9A74;--div-deep:#00432E;--div-band:var(--band-verdant);--div-band-ink:var(--band-verdant-ink);--div-band-deep:var(--band-verdant-deep);--div-band-wash:var(--band-verdant-wash)} /* 03 The Collective · verdant · ink 11.08:1 · edge 5.70:1 */
+[data-division="4"]{--div-ink:#6FC9FF;--div-edge:#0590CD;--div-deep:#013D59;--div-band:var(--band-aqua);--div-band-ink:var(--band-aqua-ink);--div-band-deep:var(--band-aqua-deep);--div-band-wash:var(--band-aqua-wash)} /* 04 Hybrid Living · aqua · ink 10.79:1 · edge 5.53:1 */
+[data-division="5"]{--div-ink:#FFA195;--div-edge:#D7564C;--div-deep:#651815;--div-band:var(--band-ember);--div-band-ink:var(--band-ember-ink);--div-band-deep:var(--band-ember-deep);--div-band-wash:var(--band-ember-wash)} /* 05 Nexus Labs · ember · ink 10.14:1 · edge 5.01:1 */
+[data-division="6"]{--div-ink:#70D887;--div-edge:#1CA04A;--div-deep:#01451A;--div-band:var(--band-verdant);--div-band-ink:var(--band-verdant-ink);--div-band-deep:var(--band-verdant-deep);--div-band-wash:var(--band-verdant-wash)} /* 06 Kinetic Edge · verdant · ink 11.16:1 · edge 5.81:1 */
+[data-division="7"]{--div-ink:#C0B0FF;--div-edge:#8B6FDF;--div-deep:#3B296B;--div-band:var(--band-violet);--div-band-ink:var(--band-violet-ink);--div-band-deep:var(--band-violet-deep);--div-band-wash:var(--band-violet-wash)} /* 07 Quantum Ledger · violet · ink 10.25:1 · edge 5.11:1 */
+[data-division="8"]{--div-ink:#DBBA5F;--div-edge:#A2821E;--div-deep:#463600;--div-band:var(--band-amber);--div-band-ink:var(--band-amber-ink);--div-band-deep:var(--band-amber-deep);--div-band-wash:var(--band-amber-wash)} /* 08 Juris Guard · amber · ink 10.54:1 · edge 5.41:1 */
+[data-division="9"]{--div-ink:#FE9FA4;--div-edge:#D75363;--div-deep:#651723;--div-band:var(--band-ember);--div-band-ink:var(--band-ember-ink);--div-band-deep:var(--band-ember-deep);--div-band-wash:var(--band-ember-wash)} /* 09 Signal Velocity · ember · ink 10.07:1 · edge 4.99:1 */
+[data-division="10"]{--div-ink:#FF9BBC;--div-edge:#D15384;--div-deep:#611737;--div-band:var(--band-ember);--div-band-ink:var(--band-ember-ink);--div-band-deep:var(--band-ember-deep);--div-band-wash:var(--band-ember-wash)} /* 10 Cognara Mind · ember · ink 10.03:1 · edge 4.97:1 */
+[data-division="11"]{--div-ink:#FEA09A;--div-edge:#C9635E;--div-deep:#651819;--div-band:var(--band-ember);--div-band-ink:var(--band-ember-ink);--div-band-deep:var(--band-ember-deep);--div-band-wash:var(--band-ember-wash)} /* 11 Terra Axis · ember · ink 10.07:1 · edge 5.11:1 */
+[data-division="12"]{--div-ink:#A0D061;--div-edge:#68970E;--div-deep:#294001;--div-band:var(--band-verdant);--div-band-ink:var(--band-verdant-ink);--div-band-deep:var(--band-verdant-deep);--div-band-wash:var(--band-verdant-wash)} /* 12 Binary Loom · verdant · ink 11.00:1 · edge 5.66:1 */
+[data-division="13"]{--div-ink:#A5C1E1;--div-edge:#6889B0;--div-deep:#27394F;--div-band:var(--band-steel);--div-band-ink:var(--band-steel-ink);--div-band-deep:var(--band-steel-deep);--div-band-wash:var(--band-steel-wash)} /* 13 Vector Shift · steel · ink 10.64:1 · edge 5.45:1 */
+[data-division="14"]{--div-ink:#FFA384;--div-edge:#D15F37;--div-deep:#631D02;--div-band:var(--band-ember);--div-band-ink:var(--band-ember-ink);--div-band-deep:var(--band-ember-deep);--div-band-wash:var(--band-ember-wash)} /* 14 Aether Link · ember · ink 10.18:1 · edge 5.08:1 */
+[data-division="15"]{--div-ink:#A7C0E1;--div-edge:#6A88B0;--div-deep:#28394F;--div-band:var(--band-steel);--div-band-ink:var(--band-steel-ink);--div-band-deep:var(--band-steel-deep);--div-band-wash:var(--band-steel-wash)} /* 15 Obsidian Arc · steel · ink 10.60:1 · edge 5.42:1 */
+[data-division="16"]{--div-ink:#DFB0B0;--div-edge:#AC7576;--div-deep:#4D2E2F;--div-band:var(--band-ember);--div-band-ink:var(--band-ember-ink);--div-band-deep:var(--band-ember-deep);--div-band-wash:var(--band-ember-wash)} /* 16 Civic Core · ember · ink 10.32:1 · edge 5.23:1 */
+[data-division="17"]{--div-ink:#E3B382;--div-edge:#A97C4C;--div-deep:#512F00;--div-band:var(--band-amber);--div-band-ink:var(--band-amber-ink);--div-band-deep:var(--band-amber-deep);--div-band-wash:var(--band-amber-wash)} /* 17 Nomad Nexus · amber · ink 10.38:1 · edge 5.34:1 */
+[data-division="18"]{--div-ink:#4AD7C4;--div-edge:#0C9B8C;--div-deep:#02423B;--div-band:var(--band-aqua);--div-band-ink:var(--band-aqua-ink);--div-band-deep:var(--band-aqua-deep);--div-band-wash:var(--band-aqua-wash)} /* 18 Vital Helix · aqua · ink 11.11:1 · edge 5.72:1 */
+[data-division="19"]{--div-ink:#85D29B;--div-edge:#4D9965;--div-deep:#004420;--div-band:var(--band-verdant);--div-band-ink:var(--band-verdant-ink);--div-band-deep:var(--band-verdant-deep);--div-band-wash:var(--band-verdant-wash)} /* 19 Gaia Synthesis · verdant · ink 11.00:1 · edge 5.70:1 */
+[data-division="20"]{--div-ink:#C8BE96;--div-edge:#938654;--div-deep:#3F381B;--div-band:var(--band-amber);--div-band-ink:var(--band-amber-ink);--div-band-deep:var(--band-amber-deep);--div-band-wash:var(--band-amber-wash)} /* 20 Eon Core · amber · ink 10.59:1 · edge 5.44:1 */
+[data-division="21"]{--div-ink:#24D4EF;--div-edge:#1296AA;--div-deep:#024049;--div-band:var(--band-aqua);--div-band-ink:var(--band-aqua-ink);--div-band-deep:var(--band-aqua-deep);--div-band-wash:var(--band-aqua-wash)} /* 21 Animus Prime · aqua · ink 11.04:1 · edge 5.61:1 */
+
+/* ----------------------------------------------------------------------------
+   Four components have no data-division attribute and pass the raw canon colour
+   in `--division` instead. For three of them that value never arrives: `h()`
+   applies style objects with `Object.assign(el.style, …)` (src/core.js:16),
+   which cannot set a custom property, so `.deckEntry` (src/screen-deck.js:148),
+   `.spreadSeg` (:189) and `.battleUnit` (src/screen-match.js:242) render with
+   no style attribute at all. Verified in the browser. `.doorHero` is fine —
+   src/screen-static.js:47 uses setProperty.
+
+   (The same bug drops `--art-x` / `--art-y` on `.battleUnit`, which is why every
+   unit on the board draws atlas tile 0,0. That one is not a colour problem and
+   is written up separately in docs/design-system.md §10.1.)
+
+   This block makes the CSS side correct in advance: wherever `--division` does
+   arrive, the tiers are derived from it live with relative colour syntax — same
+   pinned lightness, same chroma clamp, hue preserved — so a raw canon hex is
+   normalised on arrival exactly as the frozen tokens above were. Where it does
+   not, the fallback hue is a neutral steel, which reads as an intentional
+   absence of accent rather than as a fake gold. On an engine without relative
+   colour the whole block is skipped and the neutral :root tokens apply.
+   -------------------------------------------------------------------------- */
+@supports (color: oklch(from #123456 l c h)) {
+  .battleUnit, .deckEntry, .spreadSeg, .doorHero {
+    --div-ink:  oklch(from var(--division, #6E7F9C) 0.80 clamp(0.055, c, 0.150) h);
+    --div-edge: oklch(from var(--division, #6E7F9C) 0.62 clamp(0.070, c, 0.165) h);
+    --div-deep: oklch(from var(--division, #6E7F9C) 0.34 clamp(0.045, c, 0.110) h);
+  }
+}

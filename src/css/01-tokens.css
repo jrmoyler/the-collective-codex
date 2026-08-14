@@ -1,0 +1,104 @@
+/* ============================================================================
+   01-tokens — the whole system's vocabulary. Nothing below this file invents a
+   colour, a size, a duration or a shadow; if a component needs one that is not
+   here, the token is missing and belongs here.
+   Every ratio in a comment was measured with the WCAG 2.x formula against the
+   surface named, not asserted. See docs/design-system.md for the table.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Type families ---------------------------------------------------- */
+  --font-sans: "Space Grotesk", "Grotesk Metrics", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Mono Metrics", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* ---- Type scale (VD-2). 16px root. --t-200 is the hard floor. ---------- */
+  --t-display: clamp(2.75rem, 6vw, 5rem);
+  --t-900: 2.25rem;    /* 36px  screen h1 */
+  --t-800: 1.75rem;    /* 28px  panel titles, Core numeral */
+  --t-700: 1.375rem;   /* 22px  card name in the detail panel */
+  --t-600: 1.125rem;   /* 18px  lead paragraph */
+  --t-500: 1rem;       /* 16px  body, rules text */
+  --t-400: 0.875rem;   /* 14px  secondary body, card name on a tile */
+  --t-300: 0.8125rem;  /* 13px  dense data, chips */
+  --t-200: 0.75rem;    /* 12px  FLOOR. uppercase mono labels only */
+
+  /* ---- Space (VD-6): 4px base, no arbitrary values ----------------------- */
+  --sp-1: 2px;  --sp-2: 4px;  --sp-3: 8px;  --sp-4: 12px;
+  --sp-5: 16px; --sp-6: 24px; --sp-7: 32px; --sp-8: 48px;
+
+  /* ---- Line + radius (VD-7, VD-8): one line weight, orthogonal panels ---- */
+  --r-0: 0;
+  --r-inset: 6px;
+  --r-card: 12px;
+  --r-pill: 999px;
+
+  /* ---- Ground and surfaces (VD-9 ladder is below) ------------------------ */
+  --bg:        #050A18;   /* page ground */
+  --surface-1: #0A1122;   /* panels, rails, the board bed          1.05:1 on bg */
+  --surface-2: #0E1730;   /* raised: cards, tiles, chips           1.11:1 on bg */
+  --surface-3: #151F3A;   /* hover / active raise, selected rows   1.21:1 on bg */
+  --sunken:    #060B17;   /* art mats, inset wells                 0.98:1 on bg */
+  --pit:       #03060E;   /* the ground the board sits in, darker than --bg */
+
+  /* Hairlines. One weight (1px); depth comes from colour, never thickness.
+     --line and --line-hi are structural and are never the only carrier of
+     meaning; --line-strong clears the 3:1 non-text floor and is what a border
+     must use when it *is* the message (legality, selection, disabled). */
+  --line:        #1E2C4C;  /* 1.43:1 on bg — structure only */
+  --line-hi:     #2C3E66;  /* 1.87:1 on bg — section edges */
+  --line-strong: #566D9E;  /* 3.84:1 on bg, 3.45:1 on surface-2 */
+
+  /* ---- Ink -------------------------------------------------------------- */
+  --text:      #F2F5FA;   /* 18.08:1 on bg */
+  --text-dim:  #9FB0CC;   /*  8.99:1 on bg,  7.41:1 on surface-3 */
+  --text-mute: #8496B4;   /*  6.59:1 on bg,  5.43:1 on surface-3 */
+
+  /* ---- Authority + semantics (VD-16). One meaning each, never decoration. */
+  --gold:      #E3B753;   /* 10.50:1 on bg — authority, warnings, primary CTA */
+  --edge-gold: #8A6B22;   /*  3.96:1 on bg — authority *edges* only, solid so it
+                              does not drift when the surface under it changes */
+  --danger:    #FF6B6B;   /*  7.12:1 on bg — damage, loss, illegal */
+  --ok:        #4AD7C4;   /* 11.11:1 on bg — prevention, gain, live systems */
+  --warn:      var(--gold);
+  --info:      #A7C0DE;   /* 10.57:1 on bg — neutral annotation */
+  --focus:     #00D9B5;   /* 10.90:1 on bg, 8.99:1 on surface-3 */
+
+  /* Resource triad (VD-15). Fixed forever; never a division accent.
+     Each also carries a letter and a distinct pip shape. */
+  --res-command: #E3B753;  /* ▮ C  10.50:1 */
+  --res-insight: #4AD7C4;  /* ◆ I  11.11:1 */
+  --res-essence: #B9A6FF;  /* ● E   9.37:1 */
+
+  /* ---- Elevation (VD-9): a four-step ladder, max two layers per element -- */
+  --e-flat:  none;
+  --e-raise: 0 1px 0 rgba(255, 255, 255, .035), 0 2px 8px rgba(0, 0, 0, .45);
+  --e-lift:  0 8px 24px rgba(0, 0, 0, .50);
+  --e-scene: 0 24px 64px rgba(0, 0, 0, .60);
+
+  /* ---- Motion (§4.1) ---------------------------------------------------- */
+  --dur-instant: 60ms;
+  --dur-fast:    120ms;
+  --dur-base:    200ms;
+  --dur-move:    280ms;
+  --dur-beat:    420ms;
+  --dur-scene:   520ms;
+  --ease-out:  cubic-bezier(.16, 1, .30, 1);
+  --ease-in:   cubic-bezier(.40, 0, 1, 1);
+  --ease-move: cubic-bezier(.20, 0, 0, 1);
+  --ease-snap: cubic-bezier(.34, 1.30, .64, 1);
+  --motion-scale: 1;              /* set to 0 by src/core.js — MO-7 */
+
+  /* ---- Card geometry ----------------------------------------------------
+     --art-size is the *edge of a square crest*, in px, and it is the only
+     input to the atlas maths. Because the tile is square the 80×80 source is
+     never stretched, and because the value is discrete the compositor holds a
+     small, countable number of atlas rasterisations (see 07-card.css). */
+  --tile-h: 272px;
+  --art-size: 128px;
+
+  /* Board bed tints (VD-23): the entire "whose side is this" system. */
+  --tint-rival:  rgba(167, 192, 222, .030);
+  --tint-player: rgba(227, 183, 83, .034);
+}
