@@ -178,6 +178,10 @@ export function paintTile(el, c, opts = {}) {
     setAttr(el, 'data-blank', hasNoEffect(c) ? 'true' : null);
   }
   setAttr(el, 'aria-label', opts.label || cardLabel(c));
+  /* `action` and `index` are owned by the caller and set once when the tile is
+   * built, so they are only ever written here, never cleared. `data-note` is the
+   * opposite: it is derived from this card, so it must be rewritten on every
+   * paint (see below) or a recycled tile keeps the previous card's treatment. */
   if (opts.action) el.dataset.action = opts.action;
   if (opts.index !== undefined) el.dataset.index = opts.index;
   if (opts.selected !== undefined) {
@@ -198,8 +202,7 @@ export function paintTile(el, c, opts = {}) {
   setText(r.note, text);
   setClass(el, 'hasNote', Boolean(text));
   // A card that does nothing is a warning regardless of what else is true of it.
-  if (blank) setAttr(el, 'data-note', 'warn');
-  else if (opts.noteKind !== undefined) setAttr(el, 'data-note', opts.noteKind || null);
+  setAttr(el, 'data-note', blank ? 'warn' : (opts.noteKind || null));
   return el;
 }
 

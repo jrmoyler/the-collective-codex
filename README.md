@@ -48,9 +48,28 @@ The correlation is now **r = 0.92**, and that deck loses 0% against both the sta
 
 Open **Battlefield** from the main navigation. A default 30-card starter doctrine is ready immediately, or build your own from all 1,134 cards using division, family, total-cost, and search filters. Deck edits persist in local storage, including an in-progress deck shorter than 30 cards.
 
-Before the match starts, pick a rival tier — **recruit**, **veteran** or **sovereign** — or paste a seed code to replay an exact match, difficulty included. Then keep or mulligan the five-card opening hand and play cards into **Vanguard**, **Conduit**, or **Flank**. Each Core begins at 20; every refresh draws 2 cards and refills a staggered Command / Insight / Essence curve that caps at 6 / 5 / 4. Ending your turn resolves all three lanes, runs the rival's main phase and combat using the same legal rules, then refreshes your next turn. Reduce the rival Core to 0 to win — or outlast a doctrine that runs out of cards, because an empty deck deals escalating unpreventable fatigue damage to its own Core.
+Before the match starts, pick a rival tier — **recruit**, **veteran** or **sovereign** — or paste a seed code to replay a shuffle. Then keep or mulligan the five-card opening hand and play cards into **Vanguard**, **Conduit**, or **Flank**. Each Core begins at 20; every refresh draws 2 cards and refills a staggered Command / Insight / Essence curve that caps at 6 / 5 / 4. Ending your turn resolves all three lanes, runs the rival's main phase and combat using the same legal rules, then refreshes your next turn. Reduce the rival Core to 0 to win — or outlast a doctrine that runs out of cards, because an empty deck deals escalating unpreventable fatigue damage to its own Core.
 
 The rival tiers differ only in how far ahead they search. No tier gets extra resources, better cards, or a look at your hand.
+
+### Seed codes
+
+A seed code (`VET-3FAV-FQF9-TZ8M`) carries three things: the rival tier, the 32-bit shuffle
+seed, and a 15-bit fingerprint of the doctrine the match was played with.
+
+The fingerprint is there because **a seed alone does not reproduce a match**. The engine
+shuffles the deck it is handed, so the same code played against different cards is a different
+game — on one measured code, one doctrine won in nine rounds and another lost in five. The app
+said in three places that a code "reproduces the exact match", which stopped being true the
+moment anyone edited their deck. It now records which doctrine it was, and the pre-match screen
+tells you before you commit whether yours matches, differs, or is an older code that recorded
+none. Decks are also sorted before they are shuffled, so the order cards were *added* in can no
+longer change the match either.
+
+The checksum is two characters rather than one for the same reason: a typo that decodes hands
+you a different match under a code you were told was exact. One character accepted 2.8% of
+single-character typos; two accept under 0.1%. Codes in the older eleven-character format still
+decode and still replay their shuffle — they simply make no doctrine claim.
 
 The implemented resource curve, combat model, family-rule interpretations, AI behavior, and intentional conservative handling of underspecified card text are documented in [`docs/match-rules.md`](docs/match-rules.md). The engine's own contract — events, statistics, seeds and difficulty helpers — is in [`docs/engine-api.md`](docs/engine-api.md).
 
@@ -61,11 +80,21 @@ npm install
 npm run test
 npm run build
 npm run audit        # npm audit --audit-level=high
-npm run check        # test + build + audit; this is what CI runs
+npm run build:check  # fail if styles.css/match.css/ui.css drift from src/css/
+npm run check        # test + build:check + build + audit; this is what CI runs
 npm run audit:art
 npm run export:cards
 npm run rebuild:art
 ```
+
+Node 22 or newer (`engines` in `package.json`; CI pins 22).
+
+`npm run build:check` exists because `styles.css`, `match.css` and `ui.css` are **generated**
+from `src/css/` and also committed, so the repository can be opened without a build step.
+Nothing enforced that the two agreed: editing a source file and forgetting to rebuild left
+every checkout wrong while the deployed site stayed right, because CI regenerates the bundles
+before copying them to `dist/`. `check` runs the comparison *before* the build — after it,
+the build would only ever be compared against itself.
 
 `npm run check` is the gate. It includes a **blocking** `npm audit --audit-level=high`: the
 one devDependency is `sharp`, a native image decoder that the art pipeline and the card-master

@@ -391,10 +391,15 @@ kbd {
 .fieldSearch input { padding-right: 34px; }
 .fieldHint { position: absolute; right: 7px; bottom: 9px; }
 .fieldError {
+  display: block;
   margin: 0 0 var(--sp-3); padding-left: var(--sp-3);
   border-left: 2px solid var(--danger);
   color: var(--danger); font: var(--t-300)/1.45 var(--font-mono);
 }
+
+.seedNote { margin-top: var(--sp-2); }
+.seedNote[data-kind="warn"] { border-left-color: var(--warn); color: var(--warn); }
+.seedNote[data-kind="ok"] { border-left-color: var(--ok); color: var(--ok); }
 
 .chip {
   display: inline-flex; align-items: center; gap: var(--sp-2);

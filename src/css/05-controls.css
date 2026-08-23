@@ -83,10 +83,18 @@ kbd {
 .fieldSearch input { padding-right: 34px; }
 .fieldHint { position: absolute; right: 7px; bottom: 9px; }
 .fieldError {
+  display: block;
   margin: 0 0 var(--sp-3); padding-left: var(--sp-3);
   border-left: 2px solid var(--danger);
   color: var(--danger); font: var(--t-300)/1.45 var(--font-mono);
 }
+/* The seed note reports three different things and only one of them is a
+ * failure: a code can be unusable (error), usable but not an exact replay of
+ * the doctrine it was recorded with (warn), or an exact match (ok). Colour is
+ * never the only carrier — the sentence says which case it is. */
+.seedNote { margin-top: var(--sp-2); }
+.seedNote[data-kind="warn"] { border-left-color: var(--warn); color: var(--warn); }
+.seedNote[data-kind="ok"] { border-left-color: var(--ok); color: var(--ok); }
 
 /* ---- Filter chips ------------------------------------------------------- */
 .chip {

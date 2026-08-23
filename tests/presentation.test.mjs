@@ -417,10 +417,14 @@ test('a tile for an affected card carries a visible badge and says so in its acc
   assert.equal(tile.getAttribute('data-note'), 'warn');
   assert.match(tile.getAttribute('aria-label'), /No mechanical effect\./);
 
-  // Recycling the same tile onto an ordinary card must clear the badge.
+  // Recycling the same tile onto an ordinary card must clear the badge — and the
+  // treatment that went with it. `data-note` used to be written only when the
+  // caller supplied a `noteKind`, so a grid that paints without one (the default)
+  // left `warn` on the next card to land in that cell.
   paintTile(tile, realCard, {});
   assert.equal(tile.querySelector('.cardNote').textContent, '');
   assert.equal(tile.hasAttribute('data-blank'), false);
+  assert.equal(tile.hasAttribute('data-note'), false, "the previous card's warning treatment does not survive recycling");
   assert.equal(hasNoEffect(realCard), false);
   assert.equal(/No mechanical effect/.test(tile.getAttribute('aria-label')), false);
 });

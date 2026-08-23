@@ -75,24 +75,75 @@ export function normalizeDifficulty(value,fallback=DEFAULT_DIFFICULTY){
   if(!DIFFICULTY_TIERS.includes(key))throw new Error(`Unknown difficulty "${value}". Use one of: ${DIFFICULTY_TIERS.join(', ')}.`);
   return key;
 }
-const seedChecksum=text=>{let sum=0;for(const ch of text)sum=(sum*31+ch.charCodeAt(0))>>>0;return SEED_ALPHABET[sum%32];};
-export function encodeSeed(seed,difficulty=DEFAULT_DIFFICULTY){
-  const tier=normalizeDifficulty(difficulty),code=TIER_CODES[tier];
-  let n=Number(seed)>>>0;const body=[];
-  for(let i=0;i<7;i++){body.unshift(SEED_ALPHABET[n%32]);n=Math.floor(n/32);}
-  const chars=body.join('');
-  return `${code}-${chars.slice(0,4)}-${chars.slice(4)}${seedChecksum(code+chars)}`;
+/* ---------- Seed codes ----------
+ * A code is `TIER-XXXX-XXXX-XXXX`: three letters of rival tier, then twelve
+ * base-32 characters carrying
+ *
+ *   7  the 32-bit shuffle seed
+ *   3  a fingerprint of the doctrine the match was recorded with
+ *   2  a checksum over all of the above
+ *
+ * The doctrine fingerprint is the whole point of the format. A seed alone does
+ * NOT reproduce a match: the engine shuffles the deck it is handed, so the same
+ * code played against a different 30 cards produces a different game — measured
+ * on one code, doctrine A won in 9 rounds and doctrine B lost in 5. The app told
+ * players in three places that a code "reproduces the exact match", which was
+ * false the moment anyone edited their deck. The fingerprint lets a replay say
+ * so instead of quietly producing a different match under a shared code.
+ *
+ * The checksum widened from one character to two at the same time. One character
+ * accepted 2.8% of single-character typos, and a typo that slips through is the
+ * worst possible outcome for this feature: it yields a valid-looking but
+ * different match. Two characters take that to 0.1%.
+ */
+const SEED_CHARS=7,DOCTRINE_CHARS=3,CHECK_CHARS=2;
+const DOCTRINE_SPACE=32**DOCTRINE_CHARS;
+const LEGACY_LENGTH=3+SEED_CHARS+1;
+const CODE_LENGTH=3+SEED_CHARS+DOCTRINE_CHARS+CHECK_CHARS;
+const base32=(value,width)=>{let n=value>>>0,out='';for(let i=0;i<width;i++){out=SEED_ALPHABET[n%32]+out;n=Math.floor(n/32);}return out;};
+const fromBase32=chars=>{let n=0;for(const ch of chars)n=n*32+SEED_ALPHABET.indexOf(ch);return n;};
+const fnv=text=>{let x=2166136261;for(const ch of text){x^=ch.charCodeAt(0);x=Math.imul(x,16777619);}return x>>>0;};
+/* Retained to verify codes minted before the format carried a doctrine. */
+const legacyChecksum=text=>{let sum=0;for(const ch of text)sum=(sum*31+ch.charCodeAt(0))>>>0;return SEED_ALPHABET[sum%32];};
+const codeChecksum=text=>base32(fnv(text),CHECK_CHARS);
+
+/** A stable 15-bit fingerprint of a doctrine, over its card ids as a SET: the
+ *  order cards were added in is not part of a player's deck, so it must not be
+ *  part of its identity. Accepts card objects or bare ids. */
+export function doctrineFingerprint(deck){
+  const ids=(Array.isArray(deck)?deck:[]).map(c=>typeof c==='string'?c:c&&c.id).filter(Boolean).sort();
+  if(!ids.length)return 0;
+  return fnv(ids.join('|'))%DOCTRINE_SPACE;
 }
+
+export function encodeSeed(seed,difficulty=DEFAULT_DIFFICULTY,doctrine=0){
+  const tier=normalizeDifficulty(difficulty),code=TIER_CODES[tier];
+  const body=base32(Number(seed)>>>0,SEED_CHARS)+base32((Number(doctrine)>>>0)%DOCTRINE_SPACE,DOCTRINE_CHARS);
+  const tail=body+codeChecksum(code+body);
+  return `${code}-${tail.slice(0,4)}-${tail.slice(4,8)}-${tail.slice(8)}`;
+}
+export const EXAMPLE_SEED_CODE=encodeSeed(0,DEFAULT_DIFFICULTY,0);
+
+/** `doctrine` is the fingerprint the code was minted with, or null for a legacy
+ *  code that predates the field — legacy codes still replay the shuffle, they
+ *  just cannot state which doctrine produced it. */
 export function decodeSeed(text){
   const cleaned=String(text??'').toUpperCase().replace(/[^0-9A-Z]/g,'');
-  if(cleaned.length!==11)throw new Error('A seed code is a three-letter tier followed by eight characters, e.g. VET-0000-001R.');
+  if(cleaned.length!==CODE_LENGTH&&cleaned.length!==LEGACY_LENGTH)throw new Error(`A seed code is a three-letter tier followed by ${CODE_LENGTH-3} characters, e.g. ${EXAMPLE_SEED_CODE}.`);
   const code=cleaned.slice(0,3),tier=DIFFICULTY_TIERS.find(t=>TIER_CODES[t]===code);
   if(!tier)throw new Error(`Unknown difficulty tier "${code}" in seed code.`);
-  const fix=s=>s.replace(/[IL]/g,'1').replace(/O/g,'0').replace(/U/g,'V');
-  const chars=fix(cleaned.slice(3,10)),check=fix(cleaned.slice(10));
-  if(seedChecksum(code+chars)!==check)throw new Error('That seed code failed its checksum.');
-  let n=0;for(const ch of chars){const index=SEED_ALPHABET.indexOf(ch);if(index<0)throw new Error('That seed code contains an unsupported character.');n=n*32+index;}
-  return {seed:n>>>0,difficulty:tier};
+  /* The alphabet omits I, L, O and U so they cannot be misread; a player who
+   * types one anyway meant the character it was omitted in favour of. */
+  const body=cleaned.slice(3).replace(/[IL]/g,'1').replace(/O/g,'0').replace(/U/g,'V');
+  for(const ch of body)if(SEED_ALPHABET.indexOf(ch)<0)throw new Error('That seed code contains an unsupported character.');
+  const chars=body.slice(0,SEED_CHARS);
+  if(cleaned.length===LEGACY_LENGTH){
+    if(legacyChecksum(code+chars)!==body.slice(SEED_CHARS))throw new Error('That seed code failed its checksum.');
+    return {seed:fromBase32(chars)>>>0,difficulty:tier,doctrine:null};
+  }
+  const doctrine=body.slice(SEED_CHARS,SEED_CHARS+DOCTRINE_CHARS);
+  if(codeChecksum(code+chars+doctrine)!==body.slice(SEED_CHARS+DOCTRINE_CHARS))throw new Error('That seed code failed its checksum.');
+  return {seed:fromBase32(chars)>>>0,difficulty:tier,doctrine:fromBase32(doctrine)};
 }
 
 function rng(seed){let x=(seed>>>0)||1;return()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return((x>>>0)%1000000)/1000000};}
@@ -234,19 +285,31 @@ function dealCoreDamageMutable(state,defenderSide,amount,laneIndex,{effect=false
   return dealt;
 }
 
+/* The deck is sorted before it is shuffled so that a match is a function of the
+ * seed and the *set* of cards, not of the order they happened to be added in.
+ * Without this, two players holding the same 30 cards and the same code still
+ * played different games, and so did one player who removed a card and put it
+ * back. `shuffle:false` is the fixture path and keeps the caller's order. */
+const canonicalOrder=deck=>[...deck].sort((a,b)=>cmp(a.id,b.id));
+
 export function createMatch({playerDeck,rivalDeck,seed=1,shuffle=true,difficulty,playerDifficulty}={}){
   if(!Array.isArray(playerDeck)||!Array.isArray(rivalDeck)||playerDeck.length!==DECK_SIZE||rivalDeck.length!==DECK_SIZE)throw new Error(`Both decks must contain exactly ${DECK_SIZE} cards.`);
-  let numericSeed=seed,codedDifficulty=null;
-  if(typeof seed==='string'){const decoded=decodeSeed(seed);numericSeed=decoded.seed;codedDifficulty=decoded.difficulty;}
+  let numericSeed=seed,codedDifficulty=null,codedDoctrine=null;
+  if(typeof seed==='string'){const decoded=decodeSeed(seed);numericSeed=decoded.seed;codedDifficulty=decoded.difficulty;codedDoctrine=decoded.doctrine;}
   numericSeed=Number(numericSeed)>>>0;
   const rivalTier=normalizeDifficulty(difficulty??codedDifficulty??DEFAULT_DIFFICULTY);
   const playerTier=normalizeDifficulty(playerDifficulty??rivalTier);
+  const doctrine=doctrineFingerprint(playerDeck);
   const state={
     phase:'mulligan',active:'player',round:1,turnCount:1,winner:null,endReason:null,seed:numericSeed,
-    difficulty:rivalTier,playerDifficulty:playerTier,seedCode:encodeSeed(numericSeed,rivalTier),
+    difficulty:rivalTier,playerDifficulty:playerTier,doctrine,seedCode:encodeSeed(numericSeed,rivalTier,doctrine),
+    /* true / false when a code stated a doctrine, null when it did not ask. A
+     * replay under a different doctrine is allowed — it is simply not the same
+     * match, and every surface that offers the code now says which it is. */
+    doctrineMatch:codedDoctrine===null?null:codedDoctrine===doctrine,
     uidCounter:0,eventSeq:0,log:[],events:[],
     stats:{player:sideStats(),rival:sideStats(),coreHistory:[],rounds:0},
-    players:{player:participant(shuffle?shuffled(playerDeck,numericSeed):[...playerDeck]),rival:participant(shuffle?shuffled(rivalDeck,numericSeed+991):[...rivalDeck])}
+    players:{player:participant(shuffle?shuffled(canonicalOrder(playerDeck),numericSeed):[...playerDeck]),rival:participant(shuffle?shuffled(canonicalOrder(rivalDeck),numericSeed+991):[...rivalDeck])}
   };
   recordCore(state);
   emit(state,'phase',{phase:'mulligan',side:'player'},'Opening hands drawn. Select any cards to mulligan, then begin the match.');
@@ -447,7 +510,7 @@ function triggerDeployMutable(state,side,laneIndex,unit){
     for(const support of enemyLane.supports.filter(s=>INFRA_FAMILIES.has(s.card.family))){support.disabled=true;support.disabledUntilRound=state.round+1;emit(state,'support-disabled',{side:enemySide,lane:laneIndex,cardId:support.card.id,untilRound:state.round+1});}
     emit(state,'deploy-trigger',{side,lane:laneIndex,uid:unit.uid,cardId:card.id,trigger:'Dragon'},`${card.name} disabled opposing infrastructure in ${LANE_NAMES[laneIndex]} until the next refresh.`);
   }
-  if(INERT_FAMILIES[card.family])emit(state,'keyword-note',{side,lane:laneIndex,uid:unit.uid,cardId:card.id,keyword:card.keywords?.[0]||null,family:card.family},`${card.name} recorded its ${INERT_FAMILIES[card.family]}; undefined keyword numerics remain informational.`);
+  if(INERT_FAMILIES[card.family])emit(state,'keyword-note',{side,lane:laneIndex,uid:unit.uid,cardId:card.id,keyword:card.keywords?.[0]||null,family:card.family},`${card.name} recorded its ${INERT_FAMILIES[card.family]}; the engine resolves no numeric effect from it.`);
 }
 function maybeRepositionMutable(state,side,laneIndex,unit){
   const p=state.players[side],options=[laneIndex-1,laneIndex+1].filter(i=>i>=0&&i<3&&p.lanes[i].units.length<MAX_UNITS_PER_LANE);
@@ -504,7 +567,7 @@ function installSupportMutable(state,side,laneIndex,card){
   if(card.family==='Hex'){const target=strongest(enemy.lanes[laneIndex].units);if(target)support.attachedEnemyUid=target.uid;}
   if(card.family==='Plague')for(const unit of enemy.lanes[laneIndex].units){unit.infected=true;emit(state,'keyword-note',{side:other(side),lane:laneIndex,uid:unit.uid,cardId:unit.card.id,keyword:'Infected',family:'Plague'});}
   if(card.family==='Response')support.pending=true;
-  if(INERT_FAMILIES[card.family])emit(state,'keyword-note',{side,lane:laneIndex,uid:support.uid,cardId:card.id,keyword:card.keywords?.[0]||null,family:card.family},`${card.name} recorded its ${INERT_FAMILIES[card.family]}; undefined keyword numerics remain informational.`);
+  if(INERT_FAMILIES[card.family])emit(state,'keyword-note',{side,lane:laneIndex,uid:support.uid,cardId:card.id,keyword:card.keywords?.[0]||null,family:card.family},`${card.name} recorded its ${INERT_FAMILIES[card.family]}; the engine resolves no numeric effect from it.`);
   lane.supports.push(support);
 }
 const RESPONSE_COPY={Action:2,Weapon:2};

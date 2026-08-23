@@ -21,7 +21,6 @@ const COSTS = [['all', 'Any cost'], ['0-3', '0–3 total'], ['4-6', '4–6 total
 export function createDeck({ store, router, onStart }) {
   const storage = (() => { try { return globalThis.localStorage || null; } catch { return null; } })();
   let ids = loadDeckIds(storage, cards);
-  let mounted = false;
 
   /** Returns false when the doctrine could not be written to localStorage
    *  (private mode, quota, storage disabled). Callers must not claim a change
@@ -45,7 +44,7 @@ export function createDeck({ store, router, onStart }) {
     // 276 when the "no mechanical effect" disclosure shares the note slot with
     // "In doctrine".
     rowH: 288,
-    onActivate: (id) => add(id, { source: 'pool' }),
+    onActivate: (id) => add(id),
     paintOpts: (card) => ({
       selected: ids.includes(card.id),
       note: ids.includes(card.id) ? 'In doctrine' : '',
@@ -111,8 +110,8 @@ export function createDeck({ store, router, onStart }) {
 
   /* ---------- mutation ---------- */
 
-  function add(id, { source } = {}) {
-    if (ids.includes(id)) { remove(id, { source }); return; }
+  function add(id) {
+    if (ids.includes(id)) { remove(id); return; }
     if (ids.length >= DECK_SIZE) {
       toast(`Your doctrine already holds ${DECK_SIZE} cards. Remove one before adding another.`, { kind: 'warn' });
       return;
@@ -126,7 +125,7 @@ export function createDeck({ store, router, onStart }) {
     });
   }
 
-  function remove(id, { source } = {}) {
+  function remove(id) {
     const at = ids.indexOf(id);
     if (at < 0) return;
     ids = ids.filter((_, i) => i !== at);
@@ -258,7 +257,7 @@ export function createDeck({ store, router, onStart }) {
   /* ---------- events ---------- */
 
   delegate(el, 'click', {
-    removeEntry: (b) => remove(b.dataset.card, { source: 'rail' }),
+    removeEntry: (b) => remove(b.dataset.card),
     starter: async () => {
       if (ids.length && !(await confirmDialog({
         title: 'Replace your doctrine?',
@@ -309,14 +308,14 @@ export function createDeck({ store, router, onStart }) {
     has: id => ids.includes(id),
     size: () => ids.length,
     ids: () => ids.slice(),
-    add: (id) => { add(id, { source: 'external' }); },
-    remove: (id) => { remove(id, { source: 'external' }); },
+    add: (id) => { add(id); },
+    remove: (id) => { remove(id); },
     onChange(fn) { onDeckChange = fn; },
   };
 
   return {
     el, api,
-    mount() { mounted = true; grid.observe(); refreshPool(); refresh(); },
+    mount() { grid.observe(); refreshPool(); refresh(); },
     show() {
       el.hidden = false;
       grid.observe(); refreshPool(); refresh();

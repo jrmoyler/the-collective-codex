@@ -4,7 +4,7 @@ import {
   DECK_SIZE, EVENT_TYPES, DIFFICULTY_TIERS, DEFAULT_DIFFICULTY, RESOURCE_KEYS,
   CORE_ARMOUR_DIVISOR, MAX_LANE_BREACH, DRAW_PER_REFRESH, REGROUP_RECOVERY,
   createMatch, mulligan, playCard, resolveCombat, completePlayerTurn,
-  encodeSeed, decodeSeed, normalizeDifficulty, simulateMatch, aiTakeMainPhase,
+  encodeSeed, decodeSeed, doctrineFingerprint, normalizeDifficulty, simulateMatch, aiTakeMainPhase,
   planAiPlays, aiMulliganIndices, laneThreat, projectLaneDamage
 } from '../match-engine.js';
 
@@ -98,23 +98,77 @@ test('difficulty is part of the match identity, so the same seed diverges across
 
 test('seed codes round-trip, carry their tier and reject corruption',()=>{
   for(const tier of DIFFICULTY_TIERS)for(const seed of [0,1,7,99991,4294967295]){
-    const code=encodeSeed(seed,tier);
-    assert.match(code,/^[A-Z]{3}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
-    assert.deepEqual(decodeSeed(code),{seed,difficulty:tier});
-    assert.deepEqual(decodeSeed(code.toLowerCase().replace(/-/g,' ')),{seed,difficulty:tier});
+    const code=encodeSeed(seed,tier,0);
+    assert.match(code,/^[A-Z]{3}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+    assert.deepEqual(decodeSeed(code),{seed,difficulty:tier,doctrine:0});
+    assert.deepEqual(decodeSeed(code.toLowerCase().replace(/-/g,' ')),{seed,difficulty:tier,doctrine:0});
   }
-  assert.throws(()=>decodeSeed('VET-0000-000A'),/checksum/i);
-  assert.throws(()=>decodeSeed('XXX-0000-0000'),/tier/i);
+  assert.throws(()=>decodeSeed('VET-0000-0000-0000'),/checksum/i);
+  assert.throws(()=>decodeSeed('XXX-0000-0000-0000'),/tier/i);
   assert.throws(()=>decodeSeed('VET-0000'),/seed code/i);
 });
 
+/* A code minted before the format carried a doctrine still has to replay its
+ * shuffle: the codes people have already shared do not stop working because the
+ * format grew a field. */
+test('a legacy eleven-character seed code still decodes, with no doctrine claim',()=>{
+  assert.deepEqual(decodeSeed('VET-0000-44J5'),{seed:4242,difficulty:'veteran',doctrine:null});
+  assert.throws(()=>decodeSeed('VET-0000-44J6'),/checksum/i);
+});
+
+/* The one-character checksum accepted 2.8% of single-character typos, and a typo
+ * that decodes is the worst outcome this feature has: the player is told they
+ * are replaying a shared match and is quietly given a different one. */
+test('the checksum rejects better than one character ever could',()=>{
+  const ALPHABET='0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const raw=encodeSeed(4242,'veteran',12345).replace(/-/g,'');
+  let accepted=0,tried=0;
+  for(let i=3;i<raw.length;i++)for(const ch of ALPHABET){
+    const mutant=raw.slice(0,i)+ch+raw.slice(i+1);
+    if(mutant===raw)continue;
+    tried+=1;
+    try{decodeSeed(mutant);accepted+=1}catch{/* rejected, which is the point */}
+  }
+  assert.ok(accepted/tried<0.005,`single-character typo acceptance ${(accepted/tried*100).toFixed(2)}% should be well under 0.5%`);
+});
+
+/* The defect this whole format exists for: a seed alone does not reproduce a
+ * match, because the engine shuffles whatever deck it is handed. */
+test('a seed code fingerprints the doctrine it was recorded with',()=>{
+  const mine=filler('P'),other=filler('Q');
+  const played=createMatch({playerDeck:mine,rivalDeck:filler('R'),seed:31337,difficulty:'veteran'});
+  assert.equal(played.doctrineMatch,null,'a fresh match makes no replay claim');
+
+  const same=createMatch({playerDeck:mine,rivalDeck:filler('R'),seed:played.seedCode});
+  assert.equal(same.doctrineMatch,true);
+  assert.deepEqual(same.players.player.hand.map(c=>c.id),played.players.player.hand.map(c=>c.id));
+
+  const different=createMatch({playerDeck:other,rivalDeck:filler('R'),seed:played.seedCode});
+  assert.equal(different.doctrineMatch,false,'a different doctrine under the same code is reported, not hidden');
+
+  /* Legacy codes carry no fingerprint, so they must not claim a mismatch. */
+  assert.equal(createMatch({playerDeck:mine,rivalDeck:filler('R'),seed:'VET-0000-44J5'}).doctrineMatch,null);
+});
+
+test('a doctrine is fingerprinted as a set, so the order cards were added in cannot change the match',()=>{
+  const deck=filler('P'),reordered=[...deck].reverse();
+  assert.equal(doctrineFingerprint(deck),doctrineFingerprint(reordered));
+  assert.equal(doctrineFingerprint(deck),doctrineFingerprint(deck.map(c=>c.id)));
+  assert.notEqual(doctrineFingerprint(deck),doctrineFingerprint(filler('Q')));
+  const a=createMatch({playerDeck:deck,rivalDeck:filler('R'),seed:99});
+  const b=createMatch({playerDeck:reordered,rivalDeck:filler('R'),seed:99});
+  assert.deepEqual(b.players.player.hand.map(c=>c.id),a.players.player.hand.map(c=>c.id));
+});
+
 test('createMatch accepts a seed code and reports the code it is playing',()=>{
-  const code=encodeSeed(31337,'sovereign');
-  const state=createMatch({playerDeck:filler('P'),rivalDeck:filler('R'),seed:code});
+  const deck=filler('P');
+  const code=encodeSeed(31337,'sovereign',doctrineFingerprint(deck));
+  const state=createMatch({playerDeck:deck,rivalDeck:filler('R'),seed:code});
   assert.equal(state.seed,31337);
   assert.equal(state.difficulty,'sovereign');
   assert.equal(state.seedCode,code);
-  const overridden=createMatch({playerDeck:filler('P'),rivalDeck:filler('R'),seed:code,difficulty:'recruit'});
+  assert.equal(state.doctrineMatch,true);
+  const overridden=createMatch({playerDeck:deck,rivalDeck:filler('R'),seed:code,difficulty:'recruit'});
   assert.equal(overridden.difficulty,'recruit');
   assert.equal(overridden.seed,31337);
 });

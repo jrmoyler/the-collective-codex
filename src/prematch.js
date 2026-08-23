@@ -21,10 +21,39 @@ export function preMatchDialog({ deckCards }) {
   let difficulty = settings.get('difficulty') || engine.DEFAULT_DIFFICULTY;
 
   return openDialog(({ close }) => {
+    /* A code carries the fingerprint of the doctrine it was recorded with, so a
+     * mismatch can be reported here — before the match is committed — rather
+     * than producing a different game under a shared code. The player is still
+     * allowed to run it; they are simply told what they are getting. */
+    const doctrine = engine.doctrineFingerprint(deckCards);
+    // <small>, not <p>: the note lives inside the field's <label>, whose content
+    // model is phrasing content only. `data-kind` separates "this code will not
+    // work" from "this code works, but not the way you may expect".
+    const seedNote = h('small', { class: 'fieldError seedNote', id: 'seedNote', role: 'status', hidden: true });
+    const note = (kind, text) => { seedNote.dataset.kind = kind; seedNote.textContent = text; seedNote.hidden = false; };
     const seedInput = h('input', {
       id: 'seedInput', type: 'text', autocomplete: 'off', spellcheck: 'false',
-      placeholder: 'e.g. VET-3FAV-FQFE', 'aria-describedby': 'seedHelp',
+      placeholder: `e.g. ${engine.EXAMPLE_SEED_CODE}`, 'aria-describedby': 'seedHelp seedNote',
+      oninput: () => checkSeed(),
     });
+
+    /** Returns the decoded code, or null when the field is empty or unusable. */
+    function checkSeed({ loud = false } = {}) {
+      const raw = seedInput.value.trim();
+      if (!raw) { seedNote.hidden = true; return null; }
+      let decoded;
+      try { decoded = engine.decodeSeed(raw); }
+      catch (error) {
+        // Half-typed codes must not shout on every keystroke; a submit must.
+        if (loud) note('error', error.message);
+        else seedNote.hidden = true;
+        return null;
+      }
+      if (decoded.doctrine === null) note('warn', 'This is an older code with no doctrine recorded, so it can only replay the shuffle.');
+      else if (decoded.doctrine !== doctrine) note('warn', 'This code was recorded with a different doctrine. The shuffle will match; the match will not. Restore those 30 cards to replay it exactly.');
+      else note('ok', 'This code matches your doctrine — it will replay exactly.');
+      return decoded;
+    }
     const tierList = h('div', { class: 'tierList', role: 'radiogroup', 'aria-label': 'Rival difficulty' });
     const tierButtons = new Map();
     for (const [key, name, blurb] of TIERS) {
@@ -47,9 +76,10 @@ export function preMatchDialog({ deckCards }) {
       type: 'button', class: 'btn primary',
       onclick: () => {
         const raw = seedInput.value.trim();
-        if (raw) {
-          try { engine.decodeSeed(raw); }
-          catch { toast('That seed code is not valid — leave it empty for a fresh match.', { kind: 'warn' }); seedInput.focus(); return; }
+        if (raw && !checkSeed({ loud: true })) {
+          toast('That seed code is not valid — leave it empty for a fresh match.', { kind: 'warn' });
+          seedInput.focus();
+          return;
         }
         close({ difficulty, seed: raw || undefined });
       },
@@ -87,7 +117,8 @@ export function preMatchDialog({ deckCards }) {
         h('label', { class: 'field preSeed' },
           h('span', {}, 'Replay a seed code (optional)'),
           seedInput,
-          h('small', { class: 'analysisCaption', id: 'seedHelp' }, 'A seed code reproduces an exact match, including the difficulty it was played at.'),
+          h('small', { class: 'analysisCaption', id: 'seedHelp' }, 'A code replays the shuffle and the difficulty. It also records the doctrine it was played with, so an exact replay needs those same 30 cards — you will be told here if they differ.'),
+          seedNote,
         ),
         h('div', { class: 'dialogActions' },
           h('button', { type: 'button', class: 'btn', onclick: () => close(null) }, 'Back to doctrine'),
