@@ -11,7 +11,13 @@ import * as engine from '../match-engine.js';
 
 /* ---------- front door ---------- */
 
-export function createHome({ deck, hasMatch }) {
+export function createHome({ deck, hasMatch, onStart }) {
+  /* The primary door used to be an <a href="#/match"> in every state. With a
+   * legal doctrine and no match in progress that link resolved to nothing: the
+   * router redirects `#/match` to the deck builder and announces "No match in
+   * progress", so the front door's headline call to action — reading "Start a
+   * local match · Your doctrine is ready" — did not start a match. It now runs
+   * the same pre-match flow the deck builder's own button runs. */
   const resumeCard = h('a', { class: 'doorCard doorPrimary', href: '#/match' });
   const deckCard = h('a', { class: 'doorCard', href: '#/deck' });
   const codexCard = h('a', { class: 'doorCard', href: '#/codex' });
@@ -59,6 +65,10 @@ export function createHome({ deck, hasMatch }) {
     );
   }
 
+  delegate(el, 'click', {
+    startMatch: (_node, ev) => { ev.preventDefault(); onStart(); },
+  });
+
   return {
     el,
     mount() { paintHero(); },
@@ -66,10 +76,16 @@ export function createHome({ deck, hasMatch }) {
       el.hidden = false;
       const n = deck.size();
       const live = hasMatch();
+      const ready = n === engine.DECK_SIZE;
       doorCard(resumeCard, live
         ? { kicker: 'In progress', title: 'Resume your match', body: 'Return to the board exactly where you left it.', meta: 'Enter the battlefield' }
-        : { kicker: 'Play', title: 'Start a local match', body: 'Deterministic three-lane rules against a rival that drafts from the full canon to mirror your own doctrine profile. Choose its difficulty before you begin.', meta: n === 30 ? 'Your doctrine is ready' : `${n}/30 cards — finish your doctrine first` });
-      resumeCard.setAttribute('href', live ? '#/match' : n === 30 ? '#/match' : '#/deck');
+        : { kicker: 'Play', title: 'Start a local match', body: 'Deterministic three-lane rules against a rival that drafts from the full canon to mirror your own doctrine profile. Choose its difficulty before you begin.', meta: ready ? 'Your doctrine is ready' : `${n}/${engine.DECK_SIZE} cards — finish your doctrine first` });
+      // Three distinct destinations, one control. `data-action` is only set for
+      // the case the router cannot express, and is removed again for the other
+      // two so a stale handler cannot fire on a plain link.
+      const startsHere = !live && ready && typeof onStart === 'function';
+      resumeCard.setAttribute('href', live ? '#/match' : '#/deck');
+      if (startsHere) resumeCard.dataset.action = 'startMatch'; else delete resumeCard.dataset.action;
       doorCard(deckCard, { kicker: 'Your doctrine', title: `${n} / 30 cards`, body: 'Cost curve, entity balance and division spread, checked as you build.', meta: 'Open the builder' });
       doorCard(codexCard, { kicker: 'The canon', title: 'Browse 1,134 cards', body: '21 divisions, 28 families, 54 art sheets. Filter, sort, and link to any card.', meta: 'Open the Codex' });
       doorCard(learnCard, { kicker: 'New here?', title: 'Learn the basics — 90 seconds', body: 'Core, lanes, the staggered resource curve, deployment fatigue, and the one rule every other card game does differently.', meta: 'Open the primer' });

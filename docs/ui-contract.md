@@ -371,12 +371,17 @@ Notes that carry meaning and must not be styled away:
   h3.preSubhead
   .tierList[role=radiogroup] > button.tierBtn[role=radio][.active] > strong + span
   label.field.preSeed > span + input#seedInput + small.analysisCaption#seedHelp
+                                               + small.fieldError.seedNote#seedNote[data-kind=error|warn|ok]
   .dialogActions
 ```
 
 The match bar's `button.barSeed` copies `state.seedCode`. The debrief carries
 `.endSeed > h3 + p + .endSeedRow > code.seedCode + .btn + .btn`, where the second button
-re-launches the same seed. `.hudBias` in the rival HUD prints the difficulty tier and states
+re-launches the same seed. `#seedNote` is the pre-match verdict on a pasted code and has
+three states, distinguished by sentence and not by colour alone: `error` (it will not
+decode), `warn` (it decodes but was recorded with a different doctrine, or is a legacy code
+that recorded none) and `ok` (it will replay exactly). No surface may claim a code
+reproduces a match without saying that the doctrine has to match too — it does not. `.hudBias` in the rival HUD prints the difficulty tier and states
 that the rival drafts from the full canon to mirror the player's profile — it is **not** a
 division bias, and any copy claiming a three-division rival is stale.
 
@@ -538,7 +543,9 @@ FX classes the designer may restyle: `.fxHost`, `.fxChip.fxChip-danger|ok|strike
 * The Codex grid is **one tab stop**: roving `tabindex` over a virtualised pool. Arrow keys,
   Home/End, PageUp/PageDown, Enter/Space to open, `a` to add to the doctrine, `[`/`]` to step the
   detail panel.
-* Match: `1–9,0` select a hand card · `a/s/d` and `←/→` move the lane cursor · `Enter` commits
+* Match: `1–9,0` select a hand card · `←/→` **with focus in the hand** move through it, which
+  is the only keyboard route to an eleventh card and beyond · `a/s/d` and `←/→` elsewhere move
+  the lane cursor · `Enter` commits
   (a live hand selection always beats an armed end-turn) · `e` arms End turn · `i` inspect ·
   `b` read the board aloud · `l` focus the log · `Esc` closes / disarms / clears.
 * Global: `/` focus search · `?` key sheet · `g` then `c/d/b/r/h`.

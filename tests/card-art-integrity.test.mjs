@@ -3,8 +3,27 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import sharp from 'sharp';
 import { cards, sheets } from '../card-canon.js';
+
+/* `sharp` is the only dependency this repository has, and a static import of it
+ * took the WHOLE suite down with an ERR_MODULE_NOT_FOUND stack whenever a
+ * checkout had not run `npm install` yet — 135 passing tests reported as one
+ * opaque failure that never names the cause.
+ *
+ * Locally that is a setup problem and should say so. In CI it is a broken gate
+ * and must stay fatal: this file is what proves the shipped atlas decodes to
+ * 1,134 distinct tiles, so a run that silently skipped it would be a green tick
+ * over an unverified payload. `CI` is set by GitHub Actions (and by every other
+ * runner worth naming), so the two cases are told apart without a flag anyone
+ * has to remember to pass. */
+let sharp = null, sharpMissing = null;
+try { ({ default: sharp } = await import('sharp')); }
+catch (error) {
+  sharpMissing = `needs the "sharp" devDependency: run \`npm install\` (${error.code || error.message})`;
+  if (process.env.CI) throw new Error(`card art integrity ${sharpMissing}`);
+}
+/** Spread into every test that decodes the atlas. Empty once sharp is present. */
+const decodes = sharpMissing ? { skip: sharpMissing } : {};
 
 const atlasDir='assets/card-art-atlas.base64';
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -45,7 +64,7 @@ async function embeddedAtlas(){
   return {manifest,bytes};
 }
 
-test('the canonical atlas materializes exactly without recovery fallback',async()=>{
+test('the canonical atlas materializes exactly without recovery fallback',decodes,async()=>{
   const {manifest,bytes}=await embeddedAtlas();
   const metadata=await sharp(bytes).metadata();
   assert.equal(metadata.width,manifest.width);
@@ -53,7 +72,7 @@ test('the canonical atlas materializes exactly without recovery fallback',async(
   await sharp(bytes).raw().toBuffer();
 });
 
-test('all 1,134 canonical coordinates map to exact and perceptually distinct artwork',async()=>{
+test('all 1,134 canonical coordinates map to exact and perceptually distinct artwork',decodes,async()=>{
   const {manifest,bytes}=await embeddedAtlas();
   const decoded=await sharp(bytes).removeAlpha().raw().toBuffer({resolveWithObject:true});
   const tileHashes=[];
@@ -76,7 +95,7 @@ test('all 1,134 canonical coordinates map to exact and perceptually distinct art
   assert.ok(minimumDistance>=5,`perceptual hash distance must be at least 5; found ${minimumDistance}`);
 });
 
-test('card coordinates and source rows preserve the canon mapping',async()=>{
+test('card coordinates and source rows preserve the canon mapping',decodes,async()=>{
   const sourceText=await readFile('assets/card-art-source-manifest.json','utf8').catch(()=>null);
   assert.ok(sourceText,'the repaired atlas must include a row-level source manifest');
   const sourceManifest=JSON.parse(sourceText);

@@ -12,7 +12,7 @@ Everything here is reproducible: the same two decks, the same seed and the same 
 - **Core:** each side begins at 20.
 - **Opening hand:** each side draws 5 cards.
 - **Mulligan:** the player may replace any number of opening cards once. Replaced cards go to the bottom of the deck and are immediately redrawn. The rival takes its own one-time mulligan in the same step, and how greedy it is depends on the difficulty tier (see [Rival doctrine](#rival-doctrine)).
-- **Seed code:** every match carries a shareable seed code (`state.seedCode`, e.g. `VET-3FAV-FQFS`). The three-letter prefix is the rival tier and the rest encodes the 32-bit seed, so entering a code replays that exact match, difficulty included.
+- **Seed code:** every match carries a shareable seed code (`state.seedCode`, e.g. `VET-3FAV-FQF9-TZ8M`). The three-letter prefix is the rival tier; the rest encodes the 32-bit seed, a fingerprint of the doctrine the match was played with, and a checksum. Entering a code replays that shuffle at that tier — it is the *same match* only when the doctrine also matches, and the pre-match screen says so when it does not.
 - **Lanes:** Vanguard, Conduit, Flank.
 - **Capacity:** up to 3 units and 4 persistent supports per side per lane.
 - **Play legality:** a card may only be played during its controller's main phase, into a lane with a free slot of the right kind, and only if the resource pool covers its cost. Item, Action and Weapon additionally require a friendly unit already in that lane; Hex requires an opposing unit there.

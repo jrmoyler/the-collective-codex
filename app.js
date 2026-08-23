@@ -103,7 +103,11 @@ const matchScreen = createMatchScreen({
   onReplaySeed: (seed) => launch(deckScreen.api.ids(), { seed }),
   onEditDoctrine: () => router.go({ view: 'deck', id: null, query: {} }),
 });
-const homeScreen = createHome({ deck: deckScreen.api, hasMatch: () => matchScreen.hasMatch() });
+const homeScreen = createHome({
+  deck: deckScreen.api,
+  hasMatch: () => matchScreen.hasMatch(),
+  onStart: () => startMatch(deckScreen.api.ids()),
+});
 const rulesScreen = createRules();
 
 const screens = { home: homeScreen, codex: codexScreen, deck: deckScreen, match: matchScreen, rules: rulesScreen };
@@ -204,6 +208,7 @@ function showKeys() {
         ['a', 'Add the focused card to your doctrine'],
         ['[ / ]', 'Previous / next card in the detail panel'],
         ['1–9, 0', 'Select a hand card in a match'],
+        ['← → in the hand', 'Move through a hand of more than ten'],
         ['a / s / d', 'Target Vanguard / Conduit / Flank'],
         ['e', 'End turn (arms a confirm)'],
         ['b', 'Read the board state aloud'],
@@ -229,6 +234,26 @@ router.start();
 if (!storageAvailable()) toast('Your doctrine will not be saved in this browser.', { duration: 8000, kind: 'warn' });
 if (!settings.get('onboarded')) runPrimer();
 
-addEventListener('error', ev => console.error('[app] uncaught', ev.error || ev.message));
+/* Nothing here is a crash reporter — there is no backend to report to. What it
+ * is, is the difference between a failure the player can see and one they
+ * cannot. A screen that throws mid-render leaves a half-painted board and no
+ * other signal; before this, the only trace was a console line nobody has open.
+ *
+ * `unhandledrejection` matters more than `error` in this app: the pre-match
+ * dialog, the debrief and every confirm are promises, and a rejection inside one
+ * of them used to disappear entirely — the dialog stayed up and the click that
+ * opened it appeared to do nothing.
+ *
+ * The toast is deliberately generic and rate-limited to one: a fault that fires
+ * per frame must not bury the screen it is describing. */
+let faultShown = false;
+function reportFault(scope, detail) {
+  console.error(`[app] ${scope}`, detail);
+  if (faultShown) return;
+  faultShown = true;
+  toast('Something went wrong. The board may be out of date — reload the page if it stops responding.', { kind: 'warn', duration: 12000 });
+}
+addEventListener('error', ev => reportFault('uncaught', ev.error || ev.message));
+addEventListener('unhandledrejection', ev => reportFault('unhandled rejection', ev.reason));
 
 export { store };

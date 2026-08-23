@@ -59,7 +59,7 @@ createMatch({ playerDeck, rivalDeck, seed = 1, shuffle = true, difficulty, playe
 | Option | Type | Meaning |
 | --- | --- | --- |
 | `playerDeck`, `rivalDeck` | `Card[]` | Exactly `DECK_SIZE` (30) cards each, else it throws. |
-| `seed` | `number \| string` | A 32-bit number, **or** a shareable seed code (see §6). A code also carries the difficulty. |
+| `seed` | `number \| string` | A 32-bit number, **or** a shareable seed code (see §6). A code also carries the difficulty and a doctrine fingerprint. |
 | `shuffle` | `boolean` | `false` deals the decks in the given order (used by tests). |
 | `difficulty` | `'recruit' \| 'veteran' \| 'sovereign'` | The rival AI tier. Defaults to `DEFAULT_DIFFICULTY` (`'veteran'`), which reproduces pre-upgrade behaviour for existing callers. An unrecognised value throws. |
 | `playerDifficulty` | tier | Only used when something drives the *player* seat with AI (hints, demos, `simulateMatch`). Defaults to `difficulty`. |
@@ -70,7 +70,9 @@ New fields on the returned state:
 state.difficulty        // 'veteran'      — the rival AI tier
 state.playerDifficulty  // 'veteran'      — tier used when the player seat is driven by AI
 state.seed              // 3735928559     — normalised 32-bit seed
-state.seedCode          // 'VET-3FAV-FQFE' — shareable code for this match
+state.seedCode          // 'VET-3FAV-FQF9-TZ8M' — shareable code for this match
+state.doctrine          // 0..32767       — fingerprint of the player deck (§6)
+state.doctrineMatch     // true | false | null — did the code's doctrine match? null = not claimed
 state.endReason         // null | 'core' | 'fatigue'
 state.events            // Event[]        — see §3
 state.eventSeq          // number         — highest seq emitted so far
@@ -366,13 +368,26 @@ across all three tiers (not a single seed):
 ## 6. Seeds
 
 ```js
-encodeSeed(seed, difficulty)  // 3735928559, 'sovereign' → 'SOV-3FAV-FQFS'
-decodeSeed(code)              // 'sov 3fav fqfs'          → { seed: 3735928559, difficulty: 'sovereign' }
-createMatch({ playerDeck, rivalDeck, seed: 'SOV-3FAV-FQFS' })
+doctrineFingerprint(deck)             // Card[] or id[] → 0..32767, order-independent
+encodeSeed(seed, difficulty, doctrine) // 3735928559, 'sovereign', 12345 → 'SOV-3FAV-FQF9-TZ8M'
+decodeSeed(code)                       // → { seed: 3735928559, difficulty: 'sovereign', doctrine: 12345 }
+createMatch({ playerDeck, rivalDeck, seed: 'SOV-3FAV-FQF9-TZ8M' })
 ```
 
-* Format `TTT-XXXX-XXXY`: a three-letter tier (`REC`/`VET`/`SOV`), seven Crockford base-32
-  characters of the 32-bit seed, and one checksum character.
+* Format `TTT-XXXX-XXXX-XXXX`: a three-letter tier (`REC`/`VET`/`SOV`) and twelve Crockford
+  base-32 characters — seven of the 32-bit seed, three of the doctrine fingerprint, two of a
+  checksum over all of it.
+* **A seed alone does not reproduce a match.** The engine shuffles the deck it is handed, so
+  the same code played against different cards is a different game. The fingerprint is what
+  lets a caller detect that: `state.doctrineMatch` is `true`/`false` when the code stated a
+  doctrine and `null` when it did not ask.
+* `doctrineFingerprint` hashes the card ids as a **set**. `createMatch` also sorts each deck
+  before shuffling it, so the order cards were added in cannot change the match either.
+* Codes in the older eleven-character format (`TTT-XXXX-XXXY`, one checksum character) still
+  decode, with `doctrine: null`. They replay the shuffle; they make no doctrine claim.
+* The checksum is two characters rather than one because a typo that decodes is this feature's
+  worst failure — it hands the player a different match under a code they were told was exact.
+  One character accepted 2.8% of single-character typos; two accept under 0.1%.
 * Decoding is forgiving about case, spacing and punctuation, and maps `I`/`L` → `1`, `O` → `0`,
   `U` → `V`. A wrong checksum, unknown tier or wrong length throws with a readable message.
 * An explicit `difficulty` argument to `createMatch` overrides the tier inside the code.

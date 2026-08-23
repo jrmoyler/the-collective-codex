@@ -44,7 +44,7 @@ export const GLOSSARY = [
   ['armour', 'Core armour', ARMOUR_SENTENCE],
   ['regroup', 'Regroup', `At refresh each surviving unit recovers up to ${REGROUP_RECOVERY} power toward its printed value. Plague damage is permanent — it lowers the printed value too, so infection cannot be regrouped away.`],
   ['fatigue', 'Fatigue', FATIGUE_SENTENCE],
-  ['seed', 'Seed code', 'Every match is generated from a seed. The code shown in the match bar (e.g. VET-3FAV-FQFE) reproduces the exact match, difficulty included, for anyone who enters it.'],
+  ['seed', 'Seed code', 'Every match is generated from a seed. The code in the match bar carries three things: the shuffle, the rival tier, and a fingerprint of the doctrine it was played with. Entering it replays that shuffle at that tier; it is the same match only if you are holding the same 30 cards, and the pre-match screen tells you when you are not.'],
   ['defense', 'Defense', `Each active Defense support prevents the first ${CORE_PREVENTION_PER_DEFENSE} Core damage from its lane each turn. Multiple Defenses stack their prevention.`],
   ['open-lane', 'Open lane', OPEN_LANE_SENTENCE],
   ['seam', 'The seam', 'The gold band across the middle of the board. It shows, per lane, the damage that will actually land in each direction if the turn ends right now — after Core armour and Defense prevention, not raw board power.'],

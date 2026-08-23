@@ -32,7 +32,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   let laneCursor = 0;
   let region = 'hand';            // hand | lanes | log
   let lastEventSeq = 0;
-  let armed = false, armTimer = null;
+  let armed = false, armTimer = null, armGuard = false;
   let mulliganSel = new Set();
   let inspected = null;
   let endShown = false;
@@ -415,9 +415,41 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     });
     const selected = handIndex === null ? null : hand[handIndex];
     setText(handHint, hand.length
-      ? (selected ? `${selected.name} selected — choose a lane (${['a', 's', 'd'].join(' / ')}) then Enter, or click a lane.` : 'Select a card (1–9), then a lane (a / s / d), then Enter.')
+      ? (selected
+        ? `${selected.name} selected — choose a lane (${['a', 's', 'd'].join(' / ')}) then Enter, or click a lane.`
+        // The number keys reach ten slots. Past that the sentence has to name the
+        // way to the rest of the hand, or it is describing a hand the player has.
+        : `Select a card (${hand.length > 10 ? '← → in the hand, or 1–9' : '1–9'}), then a lane (a / s / d), then Enter.`)
       : `No cards in hand — you draw ${DRAW_PER_REFRESH} at refresh. Deck ${p.deck.length}.`);
   }
+
+  /* The hand is a roving-tabindex group: one tab stop, and the digit keys select
+   * slots 1–10. A hand of eleven or more is routine — two cards every refresh
+   * with no hand limit — and those cards were reachable with a mouse and by no
+   * other means, on a screen whose own help claims full keyboard operation.
+   *
+   * The listener sits on the strip rather than the screen because ArrowLeft and
+   * ArrowRight already drive the lane cursor at screen level; inside the hand
+   * they belong to the hand, and stopPropagation is what settles that. Focusing
+   * the tile also scrolls it into view, which is the only affordance the
+   * horizontally scrolling strip has. */
+  handStrip.addEventListener('keydown', ev => {
+    if (!match || match.phase !== 'main' || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const hand = match.players.player.hand;
+    if (!hand.length) return;
+    const from = handIndex === null ? 0 : handIndex;
+    let to = null;
+    if (ev.key === 'ArrowRight') to = (from + 1) % hand.length;
+    else if (ev.key === 'ArrowLeft') to = (from - 1 + hand.length) % hand.length;
+    else if (ev.key === 'Home') to = 0;
+    else if (ev.key === 'End') to = hand.length - 1;
+    if (to === null) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if (armed) disarm();
+    handIndex = to; region = 'hand';
+    paint();
+    handStrip.children[to]?.focus();
+  });
 
   const SHORT_REASON = [
     [/not enough (\w+)/i, (m) => `Need ${m[1]}`],
@@ -493,6 +525,9 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
   function disarm() {
     armed = false;
+    armGuard = false;
+    clearTimeout(armTimer);
+    if (match) endBtn.disabled = match.phase === 'ended';
     setText(endBtn, 'End turn');
     setClass(endBtn, 'armed', false);
   }
@@ -516,9 +551,10 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     // A short mis-click guard on the pointer target only: a double click on
     // "End turn" must not sail through the confirmation. The keyboard path does
     // not consult endBtn.disabled, so this never delays a deliberate ⏎.
+    armGuard = true;
     endBtn.disabled = true;
     clearTimeout(armTimer);
-    armTimer = setTimeout(() => { endBtn.disabled = false; }, 400);
+    armTimer = setTimeout(() => { armGuard = false; endBtn.disabled = match.phase === 'ended'; }, 400);
   }
 
   function doEndTurn() {
@@ -611,7 +647,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
     const ended = match.phase === 'ended';
     debriefBtn.hidden = !ended;
-    endBtn.disabled = ended;
+    /* `armGuard` is the 400 ms mis-click window armEndTurn opens; a paint landing
+     * inside it (a motion frame, a toast, an inspector close) used to re-enable
+     * the button early and let a double click sail through the confirmation the
+     * two-step exists for. One owner per property: paint defers to the guard. */
+    if (!armGuard) endBtn.disabled = ended;
     if (!armed) { setText(endBtn, 'End turn'); setText(endSummary, ended ? 'Match complete' : `${projection().out} projected out · ${projection().inc} in`); }
     if (settings.get('usedKeyboard')) el.classList.add('showKeys');
   }
@@ -697,8 +737,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   /* ---------- end of match (IA-22) ---------- */
 
   async function showEndDialog() {
-    endShown = true;
     if (!match || match.phase !== 'ended') return;
+    // Latched only once there is a debrief to show. Setting it first meant any
+    // early call spent the one-shot, and the automatic debrief at the end of the
+    // match then never opened.
+    endShown = true;
     const m = match, p = m.players.player, r = m.players.rival;
     const title = m.winner === 'player' ? 'Victory' : m.winner === 'rival' ? 'Defeat' : 'Draw';
     announce(`${title}. Your Core ${p.core}, rival Core ${r.core}, after ${m.turnCount} turns.`, { assertive: true });
@@ -745,7 +788,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
           ),
           m.seedCode ? h('div', { class: 'endSeed' },
             h('h3', {}, 'Seed'),
-            h('p', {}, 'Share this code to let anyone replay the exact match, difficulty included.'),
+            // The code carries the shuffle, the tier and a fingerprint of this
+            // doctrine. It cannot carry the 30 cards themselves, so the sentence
+            // says what the recipient needs rather than promising an exact
+            // replay the code alone cannot deliver.
+            h('p', {}, 'Share this code to replay this shuffle at this difficulty. An exact replay also needs this doctrine — the code records which one it was, and the pre-match screen says so if it differs.'),
             h('div', { class: 'endSeedRow' },
               h('code', { class: 'seedCode' }, m.seedCode),
               h('button', { type: 'button', class: 'btn btnSmall', onclick: () => copySeed() }, 'Copy seed'),
@@ -917,6 +964,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       const ok = h('button', { type: 'button', class: 'btn primary', onclick: () => close(true) }, 'Close');
       const rows = [
         ['1 – 9, 0', 'Select hand card n (press again to deselect)'],
+        ['← →', 'With focus in the hand: move through it — the only way to reach an eleventh card'],
         ['a / s / d', 'Jump the lane cursor to Vanguard / Conduit / Flank'],
         ['← →', 'Move the lane cursor'],
         ['Enter', 'Play the selected card into the lane · arm and confirm End turn'],
