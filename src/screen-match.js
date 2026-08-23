@@ -26,7 +26,7 @@ const RESOURCES = [
    20-segment Core bar for a game that no longer starts at 20, and nothing would
    fail. The engine is a hard dependency of this screen — let it be one. */
 
-export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, onReplaySeed }) {
+export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, onReplaySeed, rulesNotice = null }) {
   let match = null;
   let handIndex = null;
   let laneCursor = 0;
@@ -50,12 +50,23 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   const logToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleLog' }, 'aria-expanded': settings.get('logOpen') !== false ? 'true' : 'false', 'aria-controls': 'matchLog' }, 'Log');
   const motionToggle = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'toggleMotion' }, 'aria-pressed': 'false' }, 'Reduce motion');
 
+  /* A match played under retuned balance is a different game from the one the
+   * rules screen documents, and the player has no other way to know. The chip is
+   * absent entirely on the shipped ruleset — the overwhelming case — so it costs
+   * nothing when there is nothing to say. */
+  const rulesChip = rulesNotice
+    ? h('button', {
+        type: 'button', class: 'barSeed barRules', dataset: { action: 'showRules' },
+        title: `Balance override "${rulesNotice.label}" (${rulesNotice.digest}) — ${rulesNotice.diff.length} value${rulesNotice.diff.length === 1 ? '' : 's'} differ from the documented rules.`,
+      }, `⚑ ${rulesNotice.label}`)
+    : null;
+
   const skipHost = h('div', { class: 'skipHost' });
   const debriefBtn = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'debrief' }, hidden: true }, 'Debrief');
   const bar = h('header', { class: 'mBar' },
     h('div', { class: 'barLeft' },
       h('h1', { class: 'srOnly', id: 'matchTitle', tabindex: '-1' }, 'Local match'),
-      roundEl, phaseEl, seedEl,
+      roundEl, phaseEl, seedEl, rulesChip,
     ),
     h('div', { class: 'barRight' },
       h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'readBoard' } }, 'Read board ', h('kbd', {}, 'b')),
@@ -765,6 +776,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
             stat('Resources spent', m.stats?.player?.resourcesSpent?.total ?? '—'),
             stat('Fatigue taken', m.stats?.player?.fatigueDamage ?? 0),
             stat('Difficulty', m.difficulty || '—'),
+            rulesNotice ? stat('Balance', rulesNotice.label) : null,
           ),
           h('p', { class: 'endReason' }, m.endReason === 'fatigue'
             ? 'Ended on deck-out fatigue: a Core ran out of cards to draw.'
@@ -916,6 +928,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       if (await confirmDialog({ title: 'Abandon this match?', body: 'The board, both Cores and the log are discarded. Your doctrine is kept.', confirmLabel: 'Abandon match' })) onExit();
     },
     copySeed: () => copySeed(),
+    showRules: () => showRulesNotice(),
     debrief: () => showEndDialog(),
     readBoard: () => announce(boardSentence()),
     help: () => showKeyHelp(),
@@ -952,6 +965,26 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         node: h('div', { class: 'dialogPanel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'discardTitle' },
           h('h2', { class: 'dialogTitle', id: 'discardTitle' }, `${side === 'player' ? 'Your' : 'Rival'} discard — ${list.length} card${list.length === 1 ? '' : 's'}`),
           h('ul', { class: 'discardList' }, ...(list.length ? list.map(c => h('li', {}, `${c.name} · ${c.family}`)) : [h('li', {}, 'Nothing discarded yet.')])),
+          h('div', { class: 'dialogActions' }, ok),
+        ),
+        initial: ok,
+      };
+    });
+  }
+
+  /* Named values, not a diff dump: "startingCore 20 → 25" is something a player
+   * can hold against the rules screen; a JSON blob is not. */
+  function showRulesNotice() {
+    if (!rulesNotice) return;
+    openDialog(({ close }) => {
+      const ok = h('button', { type: 'button', class: 'btn primary', onclick: () => close(true) }, 'Close');
+      return {
+        node: h('div', { class: 'dialogPanel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'rulesTitle' },
+          h('span', { class: 'eyeline' }, 'Balance override'),
+          h('h2', { class: 'dialogTitle', id: 'rulesTitle' }, rulesNotice.label),
+          h('p', {}, 'This match is not running the balance the Rules screen describes. Seed codes from it replay this shuffle, but only against this same override.'),
+          h('table', { class: 'keyTable' }, h('tbody', {}, ...rulesNotice.diff.map(d => h('tr', {}, h('th', {}, d.key), h('td', {}, `${d.from} → ${d.to}`))))),
+          h('p', { class: 'endReason' }, `Ruleset digest ${rulesNotice.digest}.`),
           h('div', { class: 'dialogActions' }, ok),
         ),
         initial: ok,

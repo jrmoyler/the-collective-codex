@@ -279,3 +279,11 @@
 .logLine[data-type="unit-destroyed"]   { color: var(--text); border-color: var(--line-strong); }
 .logLine[data-type="match-end"]        { color: var(--gold); border-color: var(--gold); }
 .logEmpty { font: var(--t-300)/1.6 var(--font-sans); color: var(--text-dim); }
+
+/* The balance-override chip. Present only when a match is running retuned
+   numbers, which is never in a shipped build, so it is styled as a warning
+   rather than as chrome — it should read as "something is different here". */
+.barRules {
+  border-color: color-mix(in oklab, var(--warn) 55%, transparent);
+  color: var(--warn);
+}

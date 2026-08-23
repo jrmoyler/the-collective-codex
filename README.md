@@ -46,11 +46,40 @@ The correlation is now **r = 0.92**, and that deck loses 0% against both the sta
 
 ## Playing a match
 
-Open **Battlefield** from the main navigation. A default 30-card starter doctrine is ready immediately, or build your own from all 1,134 cards using division, family, total-cost, and search filters. Deck edits persist in local storage, including an in-progress deck shorter than 30 cards.
+Open **Battlefield** from the main navigation. A default 30-card starter doctrine is ready immediately, or build your own from all 1,134 cards using division, family, total-cost, and search filters. Deck edits persist in local storage, including an in-progress deck shorter than 30 cards. **A match in progress persists too** — a reload, a crashed tab or a phone the OS reclaimed comes back to the same round, hand, deck order and log.
 
 Before the match starts, pick a rival tier — **recruit**, **veteran** or **sovereign** — or paste a seed code to replay a shuffle. Then keep or mulligan the five-card opening hand and play cards into **Vanguard**, **Conduit**, or **Flank**. Each Core begins at 20; every refresh draws 2 cards and refills a staggered Command / Insight / Essence curve that caps at 6 / 5 / 4. Ending your turn resolves all three lanes, runs the rival's main phase and combat using the same legal rules, then refreshes your next turn. Reduce the rival Core to 0 to win — or outlast a doctrine that runs out of cards, because an empty deck deals escalating unpreventable fatigue damage to its own Core.
 
 The rival tiers differ only in how far ahead they search. No tier gets extra resources, better cards, or a look at your hand.
+
+### Seat parity
+
+The seat you sit in used to decide the match. On mirrored doctrines the side that acts first won **77.3%** of matches at veteran and 83% at sovereign — the engine's own source comment recorded the problem and left it open ("Fixing it properly means revisiting combat, not the opening hand"), while `docs/match-rules.md` told players the seats were even.
+
+The cause compounds rather than deciding one final swing: every round, the first seat attacks into a board the second seat has not yet attacked with, so it removes blockers a turn early, every turn. That is why the extra opening card the second seat already drew never moved the number — a card you cannot pay for is not tempo.
+
+The second seat is now compensated once, at its first refresh, with **one extra card and one extra Command, Insight and Essence**. Measured at 150 seeds per cell:
+
+| Mirror doctrine, veteran | before | now |
+| --- | --- | --- |
+| starter / curve | 77% | 53% |
+| top-heavy | 65% | 48% |
+| cheap swarm | 49% | 51% |
+
+And, more importantly, split by how the match ended — an aggregate can hide the very defect it claims to fix:
+
+| Decided by | before | now |
+| --- | --- | --- |
+| Core damage (the combat race) | 84.4% first seat | **49.1%** |
+| Deck-out fatigue | 58.5% first seat | 56.0% |
+
+`npm run balance` reproduces all of it; `tests/seat-parity.test.mjs` fails if it drifts. The full write-up, including what it cost in pacing, is in [`docs/match-rules.md`](docs/match-rules.md#seat-parity).
+
+### Balance is data, not code
+
+Every tuning number the engine reads — Core totals, resource caps, the armour divisor, the breach ceiling, the fatigue step, the on-the-draw grant, and the AI tier weights — lives in [`ruleset.js`](ruleset.js) as one deeply frozen object and reaches a match through `state.rules`. A match is played under the ruleset it started with, and `state.rules.digest` says which one that was.
+
+Overrides are treated as untrusted whatever they came from: out-of-range values are clamped, unknown keys dropped, cross-field impossibilities repaired, and everything corrected is listed on `rules.warnings`. `createRuleset()` never throws — a client that refuses to start a match is a worse outcome than one that starts a repaired one. When a match is not running the shipped balance the match bar says so, the debrief records it, and the chip opens a table of every value that differs.
 
 ### Seed codes
 
@@ -79,12 +108,27 @@ The implemented resource curve, combat model, family-rule interpretations, AI be
 npm install
 npm run test
 npm run build
+npm run balance      # play a few thousand deterministic matches and grade the result
 npm run audit        # npm audit --audit-level=high
 npm run build:check  # fail if styles.css/match.css/ui.css drift from src/css/
-npm run check        # test + build:check + build + audit; this is what CI runs
+npm run check        # test + build:check + build + balance + audit; this is what CI runs
 npm run audit:art
 npm run export:cards
 npm run rebuild:art
+```
+
+`npm run balance` is the instrument every balance claim in this repository comes from, and it
+is a blocking CI gate. A balance regression does not throw — it just makes the game worse in a
+way no unit test is shaped to notice — so the report plays mirror matches, tier ladders and
+archetype matchups over fixed seeds and exits non-zero if the seat starts deciding matches
+again (parity outside 35–65%), if the difficulty ladder stops being monotonic, if a match
+fails to resolve, or if the rival's search starts hitting the node budget that bounds its
+worst frame. It also grades a candidate balance change before a player ever sees it:
+
+```bash
+node scripts/balance-report.mjs --seeds=200                    # tighter confidence
+node scripts/balance-report.mjs --rules=candidate.json         # grade an override
+node scripts/balance-report.mjs --json > balance.json          # machine-readable
 ```
 
 Node 22 or newer (`engines` in `package.json`; CI pins 22).

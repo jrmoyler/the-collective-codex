@@ -233,6 +233,11 @@
 .logLine[data-type="match-end"]        { color: var(--gold); border-color: var(--gold); }
 .logEmpty { font: var(--t-300)/1.6 var(--font-sans); color: var(--text-dim); }
 
+.barRules {
+  border-color: color-mix(in oklab, var(--warn) 55%, transparent);
+  color: var(--warn);
+}
+
 /* 21-match-units.css */
 .battleUnit {
   --art-size: 56px;

@@ -26,9 +26,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # test + build + `npm audit --audit-level=high`. The audit gate is
-      # blocking on purpose: this project has exactly one devDependency, so a
-      # false alarm costs one pinned bump, while a missed advisory in the image
-      # pipeline ships a native decoder with known CVEs into every contributor's
-      # checkout and into the card-master export job below.
+      # test + build + balance + `npm audit --audit-level=high`.
+      #
+      # The audit gate is blocking on purpose: this project has exactly one
+      # devDependency, so a false alarm costs one pinned bump, while a missed
+      # advisory in the image pipeline ships a native decoder with known CVEs
+      # into every contributor's checkout and into the card-master export job.
+      #
+      # The balance gate is blocking for a related reason. A regression in this
+      # game does not throw — it just makes the game worse in a way no unit test
+      # is shaped to notice. `scripts/balance-report.mjs` plays a few thousand
+      # deterministic matches and fails the build if the seat you sit in starts
+      # deciding them again, if the difficulty ladder stops being monotonic, if
+      # a match stops resolving, or if the rival's search starts hitting the
+      # budget that bounds its worst frame.
       - run: npm run check

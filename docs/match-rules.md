@@ -50,9 +50,7 @@ Pools do not carry over between turns; they are overwritten by the refill. The s
 
 Each refresh draws **2** cards, on both sides, including the opening refresh. A kept opening hand is therefore 5 + 2 = 7 cards when the first main phase begins.
 
-**On the draw.** Acting second is a real disadvantage: in the round that reaches lethal, the side that acts first swings first. The side on the draw — the rival seat, which acts second — therefore draws **one extra card at its first refresh**, and its first main phase begins on 5 + 3 = 8 cards. This is the only asymmetry between the two seats, it is about seat order rather than about who is human, and it is paid once.
-
-> This corrects an earlier rule that levied the same one-card difference as a *penalty on the first seat* — the player used to draw 1 on their opening refresh — justified as "on-the-play compensation". Deployment fatigue had already removed the on-the-play tempo advantage that penalty was paying for, so the first seat paid a tax and received no tempo. Measured on mirror decks, the correction is worth 10–15 percentage points to the first seat.
+**On the draw.** The seat that acts second is compensated once, at its first refresh, with **one extra card and one extra Command, Insight and Essence** — its first main phase begins on 5 + 3 = 8 cards with a resource pool one step ahead of the curve. The grant appears in the event stream as `resource-gain` with `source: 'On the draw'`, is paid exactly once per match, and is about seat order rather than about who is human. The amounts are ruleset data (`onTheDraw` in `ruleset.js`); see **Seat parity** below for what they are worth and why the card alone was not enough.
 
 Weapon and Magician triggers draw outside this schedule; they are described in the family table.
 
@@ -131,6 +129,10 @@ The end step that follows combat expires temporary buffs, applies Plague, charge
 ### Deck-out fatigue
 
 Drawing from an empty deck does not silently do nothing. The **Nth failed draw of the match deals N Core damage to its own controller** — unpreventable, unarmoured, ignored by Defense, and not attributable to any lane. The second failed draw deals 2, the third 3, and so on, so a match between two exhausted decks terminates quickly. A match that ends this way reports `endReason: 'fatigue'` rather than `'core'`.
+
+**This is a real clock, not a rare edge case, and it moved.** A 30-card doctrine draws 5 up front and 2 at every refresh, so it is empty around round 13 — which is close to where matches now end. Measured over 120 veteran mirrors with the shipped ruleset, **43% of curve-deck matches and 66% of cheap-swarm matches end on fatigue rather than on combat damage**. The swarm figure barely moved (62% before the seat-parity compensation); the curve figure went from 17%, because both seats now survive long enough to reach the clock. The median curve match went from 11 rounds to 13.
+
+That is a deliberate acceptance, not an oversight. Bringing combat back to being the usual finish means letting more damage through — `coreArmourDivisor: 4` was re-measured under the new numbers and gives 38% fatigue endings at a median of 12 rounds with seat parity unchanged — but the divisor's current value carries the pacing on its own for undefended lanes and was set by a separate measurement that is still valid. It is one ruleset value and `npm run balance` re-measures the whole trade in under a minute; it has not been changed on this pass because a second balance target should not ride along with the first.
 
 ## Implemented family rules
 
@@ -211,10 +213,52 @@ The tiers are measurably ordered. Over 500 seeds per matchup on mirrored decks, 
 
 The gap narrows at the top, which is what a healthy ladder looks like: recruit loses to basic threat awareness, while sovereign has to earn its edge over veteran through lookahead and support play.
 
-### Where the seats stand
+### Seat parity
 
-On mirrored decks at equal difficulty, the side that acts first wins 44.8% at veteran and 48.6% at sovereign, so neither seat is meaningfully favoured. At recruit the first seat still wins about 55%, and the reason is recruit's own two-card play limit rather than the seat: a rival that can commit only two cards a turn cannot convert the compensating card into board presence, and re-running the same experiment with recruit allowed three cards a turn brings the mirror to 47% — at the cost of collapsing the veteran-over-recruit gap from 68% to 54%. The ladder is worth more than the last few points of a recruit-versus-recruit mirror that no human ever plays, so recruit keeps its limit.
+**The seat you sit in used to decide the match, and this document said otherwise.** It claimed the first seat won 44.8% at veteran; the engine's own source comment, in the same release, put it at 72–81% and called the fix out of scope ("Fixing it properly means revisiting combat, not the opening hand"). Re-measured over 150 veteran mirrors on the starter doctrine, the first seat won **77.3%**.
+
+The cause is structural and it compounds, which is why the extra opening card never touched it. Each round the first seat attacks into a board the second seat has not yet attacked with, so it removes blockers *before* they swing; the second seat's answer arrives a full turn late, every round, not just in the round that reaches lethal. Sweeping the compensating card at 0, 1 and 2 moved the result by less than run-to-run noise, because a card you cannot pay for is not tempo — resources were the binding constraint, not cards.
+
+The compensation is therefore resource tempo: **+1 Command, +1 Insight, +1 Essence, once, at the second seat's first refresh**, on top of the extra card. Measured at 150 seeds per cell:
+
+| Mirror doctrine | first seat, before | first seat, now |
+| --- | --- | --- |
+| starter / curve, veteran | 77% | 53% |
+| top-heavy, veteran | 65% | 48% |
+| cheap swarm, veteran | 49% | 51% |
+| starter / curve, sovereign | 83% | 44% |
+| top-heavy, sovereign | 69% | 51% |
+| cheap swarm, sovereign | 52% | 51% |
+
+An aggregate can hide the very defect it claims to fix, so the measurement is also split by **how** the match ended, and parity has to hold inside each population:
+
+| Decided by | before | now |
+| --- | --- | --- |
+| Core damage (the combat race) | 84.4% first seat | **49.1%** |
+| Deck-out fatigue | 58.5% first seat | 56.0% |
+
+The combat race — the thing that was actually broken — is now even. The residual sits in fatigue endings, where the first seat draws first and therefore reaches its empty deck first; at 56% over n=84 it is small, and it is the population the clock decides rather than the board.
+
+The response curve is not a knife edge: 1/1/1 and 2/2/1 both land within a point of even, and 3/3/2 overcorrects to 32% before the second seat starts running away with it. The one cell that stays off is **recruit against a cheap-swarm mirror at 60%**, and the reason is recruit's own two-card play limit rather than the seat — a rival that may commit two cards a turn cannot convert the extra resources into board presence. Raising that limit fixes the mirror and collapses the veteran-over-recruit gap, so recruit keeps its limit.
+
+`npm run balance` reproduces every number in this section, and `tests/seat-parity.test.mjs` fails if any of it drifts.
+
+### Where the tiers stand
+
+Seat-averaged over 60 seeds on the starter doctrine: veteran beats recruit 60%, sovereign beats veteran 68%, sovereign beats recruit 77%. The ladder is monotonic and the gap at the top widened with the parity fix — a deeper search converts the second seat's extra resources better than a shallow one does.
+
+## Balance is data
+
+Every number in this document — Core totals, resource caps, the armour divisor, the breach ceiling, the fatigue step, the on-the-draw grant, and the AI tier weights — lives in `ruleset.js` as one deeply frozen object, and reaches a match through `state.rules`. A match is played under the ruleset it started with, and `state.rules.digest` identifies which one that was.
+
+Three consequences worth knowing:
+
+* **A retune is a config change, not a deploy.** `createRuleset(overrides)` validates untrusted input: out-of-range values are clamped, unknown keys are dropped, cross-field impossibilities (a resource ceiling below the per-turn cap; an opening hand larger than the doctrine) are repaired, and everything corrected is listed on `rules.warnings`. It never throws — a client that refuses to start a match is worse than one that starts a repaired one.
+* **A retuned match says so.** When the active ruleset is not the shipped one the match bar carries a warning chip naming it, the debrief records it, and the dialog behind the chip lists every value that differs. Seed codes do not encode the ruleset, so a code minted under an override only replays against that same override — the same honesty the doctrine fingerprint already applies to decks.
+* **An in-progress match saved under one ruleset will not resume under another.** `match-codec.js` refuses the restore rather than playing out the remainder of a match under numbers it did not start with.
 
 ## Match end and reset
 
 When either Core reaches 0 — from combat, from a card effect, or from fatigue — the battlefield enters an ended state and displays the final Core scores, the turn count, and the seed code for a rematch. **Play again** starts a fresh match from the currently saved player deck. **Return to Codex** exits the match while preserving the active deck in local storage. **Reset match** abandons current match state and returns to deck construction.
+
+**A match in progress survives the tab.** The board is written to local storage after every state change and read back at boot, so a reload, a crashed tab, or a phone the OS reclaimed returns to the same round with the same hand, deck order, discard pile and log. A restored board is refused rather than approximated: a save from a different schema, a different ruleset, or one referencing a card this build does not have is discarded and the app starts clean. Abandoning a match clears the save.
