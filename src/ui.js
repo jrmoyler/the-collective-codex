@@ -118,12 +118,43 @@ export function confirmDialog({ title, body, confirmLabel = 'Confirm', cancelLab
   });
 }
 
-/** Generic modal. `build({close})` returns { node, initial }. */
+/** Generic modal. `build({close})` returns { node, initial }.
+ *
+ *  Two failure modes are handled here rather than left to every caller, because
+ *  both of them end the same way: an awaited promise that never settles, with
+ *  no dialog on screen to explain why. `preMatchDialog` is awaited by the only
+ *  path that starts a match, so either one meant the Start button silently
+ *  stopped working for the rest of the session.
+ *
+ *  1. `build` closes synchronously — a builder that validates its own inputs and
+ *     bails, for instance. `close()` ran before `openDialogRelease` existed, so
+ *     `closeDialog` returned at its guard and the resolver was dropped.
+ *  2. `build` throws. The executor's exception rejects the promise for free in a
+ *     bare `new Promise`, but only if nothing has been mounted yet; the explicit
+ *     unwind below also takes the scrim and `body.hasDialog` back off, so a
+ *     builder that throws half-way through cannot leave an invisible scrim
+ *     eating every click on the screen underneath.
+ */
 export function openDialog(build) {
   if (openDialogRelease) closeDialog(null);
-  return new Promise(resolve => {
-    const close = (result) => closeDialog(result);
-    const { node, initial } = build({ close });
+  return new Promise((resolve, reject) => {
+    let earlyClose = false, earlyResult;
+    const close = (result) => {
+      if (openDialogRelease) { closeDialog(result); return; }
+      earlyClose = true; earlyResult = result;
+    };
+    let built;
+    try {
+      built = build({ close });
+    } catch (error) {
+      dialogHost.hidden = true;
+      clear(dialogHost);
+      document.body.classList.remove('hasDialog');
+      reject(error);
+      return;
+    }
+    if (earlyClose) { resolve(earlyResult); return; }
+    const { node, initial } = built;
     dialogHost.hidden = false;
     clear(dialogHost);
     dialogHost.append(h('div', { class: 'dialogScrim', onclick: () => close(false) }), node);

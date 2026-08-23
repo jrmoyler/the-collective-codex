@@ -55,9 +55,28 @@ const cmp=(a,b)=>a<b?-1:a>b?1:0;
 const hasKeyword=(thing,keyword)=>thing?.card?.keywords?.includes(keyword)||thing?.keywords?.includes(keyword)||thing?.card?.family===keyword||thing?.family===keyword||String(thing?.card?.rulesText||thing?.rulesText||'').includes(keyword);
 const alive=unit=>unit.power>0;
 const isCard=v=>Boolean(v)&&typeof v==='object'&&typeof v.id==='string'&&typeof v.family==='string'&&Boolean(v.cost)&&typeof v.cost==='object';
+/* Deep copy with two escape hatches, and both of them are load-bearing.
+ *
+ * A frozen object is shared by reference rather than rebuilt. Every event record
+ * is frozen the moment it is emitted (see `emit`), which turns the single most
+ * expensive part of a late-game clone into a pointer copy. The event stream is
+ * append-only and never edited after the fact -- `state.log` is capped at 60
+ * lines but `state.events` is the match's whole audit trail and grows for the
+ * life of the match, so by round 11 of a measured sovereign match it was 366
+ * records and 58% of the cloned bytes. Cloning it field-by-field on every
+ * playCard and every resolveCombat made the cost of taking a turn a function of
+ * how many turns had already been taken: the same AI turn measured 2.6 ms in
+ * round 1 and 21.8 ms in round 9 on identical board complexity. Freezing is what
+ * makes the sharing safe rather than merely fast -- an accidental write to an
+ * already-emitted event now throws in strict mode instead of silently editing
+ * history that another state object is also holding.
+ *
+ * Cards are shared for the same reason (they are canon: read-only for the life
+ * of the process) and are not frozen only because they are supplied by the
+ * caller, not minted here. */
 function clone(value){
   if(value===null||typeof value!=='object')return value;
-  if(isCard(value))return value;
+  if(Object.isFrozen(value)||isCard(value))return value;
   if(Array.isArray(value)){const out=new Array(value.length);for(let i=0;i<value.length;i++)out[i]=clone(value[i]);return out;}
   const out={};for(const k of Object.keys(value))out[k]=clone(value[k]);return out;
 }
@@ -158,7 +177,10 @@ function emit(state,type,fields={},text=''){
    * animates `unit-destroyed` and friends, and a trailing death animation after the
    * victory banner is a visible defect. See docs/engine-api.md §3.2. */
   if(state.phase==='ended'&&type!=='match-end')return null;
-  const event={seq:state.eventSeq+1,round:state.round,turn:state.turnCount,type,side:null,lane:null,cardId:null,uid:null,amount:null,...fields,text:String(text||'')};
+  /* Frozen on the way out, never after the fact: `clone` shares frozen objects by
+   * reference, so this is the guarantee that a state and its clone can hold the
+   * same event record without either being able to rewrite the other's history. */
+  const event=Object.freeze({seq:state.eventSeq+1,round:state.round,turn:state.turnCount,type,side:null,lane:null,cardId:null,uid:null,amount:null,...fields,text:String(text||'')});
   state.eventSeq=event.seq;state.events.push(event);
   if(event.text)addLog(state,event.text);
   return event;

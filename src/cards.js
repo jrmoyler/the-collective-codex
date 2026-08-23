@@ -44,23 +44,43 @@ const searchIndex = cards.map(c => {
   return `${c.name} ${c.id} ${d.name} ${pad2(d.id)} ${c.family} ${c.subtype} ${c.rarity} ${c.setLabel} ${c.rulesText} ${c.keywords.join(' ')}`.toLowerCase();
 });
 
-const COST_BANDS = { '0-3': [0, 3], '4-6': [4, 6], '7+': [7, Infinity] };
+/* Maps, not object literals, for the same reason core.js's `delegate` uses one:
+ * both of these keys arrive from the URL query string, which is shareable and
+ * therefore attacker-authored, and an object lookup answers for keys that were
+ * never registered. `SORTS['__proto__']` is Object.prototype — truthy, not a
+ * function — so `out.sort(cmp)` throws `The comparison function must be either a
+ * function or undefined` in the middle of rendering the Codex, and the link that
+ * does it (`#/codex?sort=__proto__`) is one someone can send you.
+ * `SORTS['constructor']` is worse in a quieter way: it IS a function, so it is
+ * accepted as a comparator and silently produces an arbitrary order.
+ *
+ * screen-codex.js already validates `sort` against an allow-list before it gets
+ * here, and that guard stays. This is the structural half: the lookup cannot
+ * answer for a key nobody registered, so a second caller that forgets to
+ * validate — screen-deck.js also calls queryCards — is not one refactor away
+ * from the same defect.
+ */
+const COST_BANDS = new Map([['0-3', [0, 3]], ['4-6', [4, 6]], ['7+', [7, Infinity]]]);
 
-const SORTS = {
-  division: (a, b) => a.divisionId - b.divisionId || a.family.localeCompare(b.family) || a.name.localeCompare(b.name),
-  name: (a, b) => a.name.localeCompare(b.name),
-  cost: (a, b) => totalCost(a) - totalCost(b) || a.name.localeCompare(b.name),
-  power: (a, b) => b.power - a.power || a.name.localeCompare(b.name),
-  rarity: (a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity] || a.name.localeCompare(b.name),
-  set: (a, b) => a.family.localeCompare(b.family) || a.set - b.set || a.divisionId - b.divisionId,
-};
-export const SORT_LABELS = { division: 'Division order', name: 'Name', cost: 'Total cost', power: 'Power', rarity: 'Rarity', set: 'Set' };
+/* One table, so the labels the <select> renders and the comparators the sort
+ * uses cannot drift apart. When they were two literals, a label without a
+ * matching comparator passed the allow-list and then sorted nothing, silently. */
+const SORTS = new Map([
+  ['division', { label: 'Division order', cmp: (a, b) => a.divisionId - b.divisionId || a.family.localeCompare(b.family) || a.name.localeCompare(b.name) }],
+  ['name',     { label: 'Name',           cmp: (a, b) => a.name.localeCompare(b.name) }],
+  ['cost',     { label: 'Total cost',     cmp: (a, b) => totalCost(a) - totalCost(b) || a.name.localeCompare(b.name) }],
+  ['power',    { label: 'Power',          cmp: (a, b) => b.power - a.power || a.name.localeCompare(b.name) }],
+  ['rarity',   { label: 'Rarity',         cmp: (a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity] || a.name.localeCompare(b.name) }],
+  ['set',      { label: 'Set',            cmp: (a, b) => a.family.localeCompare(b.family) || a.set - b.set || a.divisionId - b.divisionId }],
+]);
+/** Derived, never re-typed: the <select> and the allow-list both read this. */
+export const SORT_LABELS = Object.fromEntries([...SORTS].map(([key, { label }]) => [key, label]));
 
 /** Returns an array of card objects. Never allocates per-card strings. */
 export function queryCards({ division = 'all', family = 'all', rarity = 'all', cost = 'all', query = '', sort = 'division' } = {}) {
   const q = String(query || '').trim().toLowerCase();
   const div = division === 'all' ? null : Number(division);
-  const band = COST_BANDS[cost] || null;
+  const band = COST_BANDS.get(cost) || null;
   const out = [];
   for (let i = 0; i < cards.length; i++) {
     const c = cards[i];
@@ -71,8 +91,10 @@ export function queryCards({ division = 'all', family = 'all', rarity = 'all', c
     if (q && searchIndex[i].indexOf(q) === -1) continue;
     out.push(c);
   }
-  const cmp = SORTS[sort];
-  return cmp && sort !== 'division' ? out.sort(cmp) : out;
+  /* 'division' is skipped because the canon is already stored in division order,
+   * so the comparator would be a no-op over 1,134 records on every keystroke. */
+  const entry = sort === 'division' ? null : SORTS.get(sort);
+  return entry ? out.sort(entry.cmp) : out;
 }
 
 /** IA-8: "no results" needs nearest matches, not a shrug. */

@@ -33,19 +33,70 @@ const PRIORITY = {
 
 export function createMotion({ resolve, skipHost, onDone }) {
   let timers = [];
-  let chips = [];
+  /* Every decoration this module applies to a node it does not own is tracked
+   * until it is taken back off again. That bookkeeping is the whole point.
+   *
+   * `cancel()` used to clear the pending timers and stop there, so any class a
+   * pulse had already added stayed on the element for the rest of the match:
+   * .fxClash / .fxCoreDrop / .fxTrigger and friends are not animations that end,
+   * they are a live `outline: 2px solid currentColor` held for the length of a
+   * timer that cancel() had just thrown away. Skipping a timeline — the button
+   * exists precisely so players can — left red and gold outlines welded to the
+   * board, and so did the ordinary case of playing a second card before the
+   * first card's timeline finished, because consume() begins by cancelling.
+   * `fxHost` was worse: nothing removed it at all, on any path.
+   *
+   * Nodes are reconciled by uid and reused across turns, so a stuck class does
+   * not wash out on the next paint. It stays until the unit dies. */
+  let chips = [];    // { node, host }
+  let pulses = [];   // { el, cls }
+  const hostCounts = new Map();
   let running = false;
   let skipBtn = null;
 
-  function clearChips() { for (const c of chips) c.remove(); chips = []; }
+  function dropChip(entry) {
+    const i = chips.indexOf(entry);
+    if (i < 0) return;
+    chips.splice(i, 1);
+    entry.node.remove();
+    const left = (hostCounts.get(entry.host) || 1) - 1;
+    if (left > 0) hostCounts.set(entry.host, left);
+    else { hostCounts.delete(entry.host); entry.host.classList.remove('fxHost'); }
+  }
 
-  function cancel() {
+  function dropPulse(entry) {
+    const i = pulses.indexOf(entry);
+    if (i < 0) return;
+    pulses.splice(i, 1);
+    /* Only when this was the last claim on that class: two events in one
+     * timeline can pulse the same node, and the first one's timer must not
+     * strip the outline the second one is still holding. */
+    if (!pulses.some(p => p.el === entry.el && p.cls === entry.cls)) entry.el.classList.remove(entry.cls);
+  }
+
+  /** Undo everything this module has applied and stop the clock. Deliberately
+   *  silent: a timeline that was replaced or skipped did not complete, so it
+   *  does not get to report completion. */
+  function teardown() {
     for (const t of timers) clearTimeout(t);
     timers = [];
-    clearChips();
+    while (chips.length) dropChip(chips[0]);
+    while (pulses.length) dropPulse(pulses[0]);
+    /* dropChip already empties this as it goes; the sweep is here so that the
+     * post-condition of teardown() is a property of the function rather than of
+     * the order its two loops happen to run in. */
+    for (const [el] of hostCounts) el.classList.remove('fxHost');
+    hostCounts.clear();
     running = false;
     hideSkip();
-    if (onDone) onDone();
+  }
+
+  /** Public skip. The timeline is over from the player's point of view, so this
+   *  one does notify. */
+  function cancel() {
+    const wasRunning = running;
+    teardown();
+    if (wasRunning && onDone) onDone();
   }
 
   function showSkip(duration) {
@@ -64,15 +115,19 @@ export function createMotion({ resolve, skipHost, onDone }) {
     if (!target || !target.isConnected) return;
     const node = h('span', { class: `fxChip fxChip-${kind}`, 'aria-hidden': 'true' }, text);
     target.classList.add('fxHost');
+    hostCounts.set(target, (hostCounts.get(target) || 0) + 1);
     target.append(node);
-    chips.push(node);
-    timers.push(setTimeout(() => { node.remove(); chips = chips.filter(c => c !== node); }, reduced ? 640 : 540));
+    const entry = { node, host: target };
+    chips.push(entry);
+    timers.push(setTimeout(() => dropChip(entry), reduced ? 640 : 540));
   }
 
   function pulse(target, cls, ms) {
     if (!target || !target.isConnected) return;
     target.classList.add(cls);
-    timers.push(setTimeout(() => target.classList.remove(cls), ms));
+    const entry = { el: target, cls };
+    pulses.push(entry);
+    timers.push(setTimeout(() => dropPulse(entry), ms));
   }
 
   /**
@@ -80,7 +135,10 @@ export function createMotion({ resolve, skipHost, onDone }) {
    * @param {object} ctx    { side: 'player' } — which side is the local player
    */
   function consume(events, ctx = {}) {
-    cancel();
+    /* teardown(), not cancel(): a timeline replaced by a newer one never
+     * completed, and firing the completion callback for it would tell the screen
+     * a resolution had finished playing when it had in fact been discarded. */
+    teardown();
     const reduced = motionReduced();
 
     // Pair each core-damage with the combat-strike that produced it so the player
@@ -120,6 +178,9 @@ export function createMotion({ resolve, skipHost, onDone }) {
     list.forEach((ev, i) => {
       timers.push(setTimeout(() => decorate(ev, ctx, reduced), Math.min(cap - 40, i * perEvent)));
     });
+    /* Natural completion does NOT sweep: the chips and pulses still on screen own
+     * their own removal timers and are mid-animation. Only an interrupted
+     * timeline needs the sweep, which is what teardown() is for. */
     timers.push(setTimeout(() => { running = false; hideSkip(); if (onDone) onDone(); }, total));
   }
 

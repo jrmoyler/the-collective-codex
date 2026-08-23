@@ -89,7 +89,19 @@ function launch(ids, options = {}) {
 
 async function startMatch(ids) {
   const deckCards = ids.map(id => cardById.get(id)).filter(Boolean);
-  const options = await preMatchDialog({ deckCards });
+  let options;
+  try {
+    // The pre-match dialog is the only route into a match, so a rejection here
+    // has to land somewhere the player can see. openDialog now rejects rather
+    // than hanging when a builder throws; without this catch that surfaces as
+    // the generic unhandled-rejection toast, which says nothing about the
+    // button that was just pressed.
+    options = await preMatchDialog({ deckCards });
+  } catch (error) {
+    console.error('[app] pre-match dialog failed', error);
+    toast('The pre-match screen could not open. Reload the page and try again.', { kind: 'warn' });
+    return;
+  }
   if (!options) return;
   launch(ids, options);
 }
