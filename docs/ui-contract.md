@@ -23,6 +23,7 @@ src/core.js           h(), delegation, store, hash router, focus, motion switch
 src/cards.js          canon indexes, search index, atlas gate, card tile component
 src/ui.js             notification model: toasts, dialogs, live regions, popovers
 src/terms.js          glossary term buttons + popover wiring
+src/rules-copy.js     every rules NUMBER the UI prints, derived from match-engine.js
 src/glossary.js       all rules copy shown in the UI (single source)
 src/vgrid.js          reusable windowed card grid (used by the deck pool)
 src/motion.js         the animation layer — consumes engine events, decorates only
@@ -35,6 +36,22 @@ src/screen-static.js  #/ front door, #/rules, first-run primer
 
 **Every one of these is in the `scripts/build.mjs` copy list.** Adding a module without adding
 it there produces a 404 in `dist/`. `npm run build` prints the file count as a cheap check.
+
+#### The rule about numbers
+
+`src/glossary.js` has always described itself as the single source of rules copy, and it was —
+for the *wording*. It was not for the *numbers*: those were typed in, and by the time the
+armour divisor had moved 4 → 5, the breach ceiling had stopped applying to undefended lanes
+and the opening refresh had gone 1 card → 2, the glossary, the pre-match dialog, the mulligan
+panel, the seam tooltip and the deck analysis were all describing a game the engine no longer
+played. The open-lane definition was the reverse of the truth.
+
+So: **no screen may contain a literal that also exists in `match-engine.js`.** Import it, or
+import a sentence built from it in `src/rules-copy.js`. That includes defensive-looking
+fallbacks — `engine.STARTING_CORE ?? 20` was a second copy of the constant that would have
+gone on quietly drawing a 20-segment Core bar for a game that had stopped starting at 20.
+`tests/rules-copy.test.mjs` re-derives every printed claim from `armourBreach`, the draw
+schedule and `resourceCurve`, so a hand-typed formula fails the build.
 
 ### 1.2 CSS — `styles.css`, `match.css` and `ui.css` are GENERATED
 

@@ -7,11 +7,15 @@ import { divisions, families, cards, cardById, divisionById, queryCards, totalCo
 import { createVGrid } from './vgrid.js';
 import { toast, confirmDialog, announce, setInlineError } from './ui.js';
 import { loadDeckIds, saveDeckIds, buildStarterDeck, deckProfile, castableTurn } from '../deck-store.js';
+import { curveAt, CAPS_LABEL, OPENING_HAND_TOTAL } from './rules-copy.js';
 import * as engine from '../match-engine.js';
 
 const DECK_SIZE = engine.DECK_SIZE;
 const ENTITY = engine.ENTITY_FAMILIES;
-const SUPPORT = new Set(['Weapon', 'Environment', 'Defense', 'Base', 'Trap', 'Reaction', 'Response', 'Law', 'Hex', 'Plague', 'Virus', 'Ritual', 'World']);
+/* The engine's own classification, not a second copy of it. This list and the
+   engine's used to be maintained separately; reclassifying one family would have
+   silently miscounted every doctrine in the analysis pane. */
+const SUPPORT = engine.SUPPORT_FAMILIES;
 const COSTS = [['all', 'Any cost'], ['0-3', '0–3 total'], ['4-6', '4–6 total'], ['7+', '7+ total']];
 
 export function createDeck({ store, router, onStart }) {
@@ -190,8 +194,7 @@ export function createDeck({ store, router, onStart }) {
         h('b', { class: 'curveNum' }, String(n)),
       ));
     });
-    const curveAt = t => { const r = engine.resourceCurve(t); return `${r.command}/${r.insight}/${r.essence}`; };
-    setText(curveCaption, `Earliest castable turn. Resources ramp C/I/E ${curveAt(1)} → ${curveAt(3)} → ${curveAt(5)} (caps 6/5/4). This doctrine leans ${profile.primaryResource || '—'}; the average card lands on turn ${profile.averageCastableTurn || '—'}.`);
+    setText(curveCaption, `Earliest castable turn. Resources ramp C/I/E ${curveAt(1)} → ${curveAt(3)} → ${curveAt(5)} (caps ${CAPS_LABEL}). This doctrine leans ${profile.primaryResource || '—'}; the average card lands on turn ${profile.averageCastableTurn || '—'}.`);
 
     const entities = list.filter(c => ENTITY.has(c.family)).length;
     const supports = list.filter(c => SUPPORT.has(c.family)).length;
@@ -216,7 +219,7 @@ export function createDeck({ store, router, onStart }) {
     const needsUnit = list.filter(c => ['Item', 'Action', 'Weapon'].includes(c.family)).length;
     if (needsUnit > entities) warn(`${needsUnit} Item/Action/Weapon cards but only ${entities} entities — those cards are unplayable in a lane with no friendly unit.`);
     const late = list.filter(c => castableTurn(c) >= 5).length;
-    if (late > 10) warn(`${late} cards cannot be cast before turn 5 — with a 6-card opening hand most of it will sit dead while the rival develops.`);
+    if (late > 10) warn(`${late} cards cannot be cast before turn 5 — with a ${OPENING_HAND_TOTAL}-card opening hand most of it will sit dead while the rival develops.`);
     const early = list.filter(c => castableTurn(c) <= 2).length;
     if (list.length >= 20 && early < 6) warn(`Only ${early} card${early === 1 ? '' : 's'} castable by turn 2 — you will not contest a lane before the rival does.`);
     const blank = list.filter(hasNoEffect).length;

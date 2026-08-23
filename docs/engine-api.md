@@ -22,6 +22,21 @@ calculation, exported so a UI can preview a strike without duplicating the formu
 `MAX_LANE_BREACH` still exists and still means 3, but it is now the ceiling for a
 **contested** lane rather than for every lane.
 
+Five further exports were added, all of them constants the engine already used as inline
+literals and the UI already restated as prose:
+
+| Export | Value | Why it is exported |
+| --- | --- | --- |
+| `SUPPORT_FAMILIES` | 13 families | The deck builder kept its own copy of this list. |
+| `IMMEDIATE_FAMILIES` | `Item, Action, Spell, Disaster` | The complement of the other two sets; the glossary names it. |
+| `ON_THE_DRAW_BONUS` | `1` | The extra card the second seat draws (§4.5), previously inline in `completePlayerTurn`. |
+| `CORE_PREVENTION_PER_DEFENSE` | `2` | Stated verbatim in the in-app Defense definition. |
+| `RITUAL_CHANNEL` | `3` | Stated verbatim in the in-app Channel definition. |
+
+None of them changes behaviour. They exist so that `src/rules-copy.js` can derive every
+number the player reads from the engine instead of a contributor retyping it — see
+[§10](#10-relationship-to-match-rulesmd).
+
 `state.log` is still a plain array of newest-first strings capped at 60 entries. It is now
 **derived** from the event stream — a log line exists for every event that carries a non-empty
 `text`. Reading `state.log` requires no changes.
@@ -509,6 +524,23 @@ the ordering guarantees, the statistics contract, seeds, and the AI helper surfa
 
 Where a rules change lands in both, both were edited in the same commit. If they ever
 disagree again, this document is the one checked by `tests/engine-invariants.test.mjs`.
+
+### 10.1 The third copy: what the player reads
+
+Both documents being right was not enough. A rules change also has to reach the glossary, the
+pre-match dialog, the mulligan panel, the lane seam tooltip and the deck analysis — and for
+three changes in a row it did not. The armour divisor moved 4 → 5, the breach ceiling stopped
+applying to undefended lanes and the opening refresh went 1 card → 2; all three were written
+up here and in `match-rules.md`, and all three were contradicted in the product by prose that
+had been typed by hand. The worst of them inverted the lesson: the glossary told players an
+open lane was "worth at most 3 Core a turn" in the same build that removed that ceiling
+precisely so abandoning a lane would be dangerous.
+
+**Prose containing an engine number is engine output.** `src/rules-copy.js` computes every
+such string from the exports above, the UI imports it, and `tests/rules-copy.test.mjs`
+re-derives each claim from `armourBreach`, the draw schedule and `resourceCurve` rather than
+comparing strings to strings. A number that appears on screen and is not derived there is a
+bug, whatever the docs say.
 
 ## 11. Known limits
 

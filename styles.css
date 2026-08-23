@@ -227,6 +227,12 @@ img { max-width: 100%; }
   white-space: nowrap; border: 0;
 }
 
+.noscriptNotice {
+  padding: 24px;
+  font: 16px/1.5 system-ui, sans-serif;
+  color: #F5F5F5;
+}
+
 /* 04-shell.css */
 #app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 .appMain { flex: 1; min-height: 0; display: flex; flex-direction: column; }

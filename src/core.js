@@ -1,5 +1,9 @@
 /* core.js — DOM builder, delegated events, store, hash router, focus + motion utilities.
-   No dependencies. Every other module builds on this. */
+   Every other module builds on this. Its only import is the engine's difficulty
+   tier list, so persisted settings can be validated against the real allow-list
+   rather than a second copy of it that would drift. */
+
+import { DIFFICULTY_TIERS, DEFAULT_DIFFICULTY } from '../match-engine.js';
 
 /* ---------- DOM ---------- */
 
@@ -176,12 +180,55 @@ export function rove(items, activeIndex) {
 const SETTINGS_KEY = 'collectiveCodex.settings.v1';
 const storage = (() => { try { return globalThis.localStorage || null; } catch { return null; } })();
 
+/* Persisted settings are untrusted input.
+ *
+ * They used to be spread in wholesale: `{...defaults, ...JSON.parse(raw)}`. Any
+ * value that a future build, an older build, an extension or a shared machine
+ * had left in this key was adopted verbatim and handed straight to the engine.
+ * `difficulty` made that a real failure rather than a theoretical one: a value
+ * outside the tier list reaches `normalizeDifficulty`, which throws, so
+ * `createMatch` fails, `launch()` catches it and toasts — and the player cannot
+ * start a match at all. The bad value is in localStorage, so a reload does not
+ * clear it; nothing inside the app recovers unless the player happens to click
+ * a difficulty tile. One malformed key permanently disables the game's only
+ * interactive feature.
+ *
+ * Every key is now validated on the way in and on the way out. Unknown keys are
+ * dropped, a value that fails its check falls back to the default, and the
+ * sanitised object is what gets written back — so a poisoned key self-heals on
+ * the next write instead of persisting.
+ */
+const boolean = v => typeof v === 'boolean';
+const oneOf = (...allowed) => v => allowed.includes(v);
+const SETTINGS_SCHEMA = {
+  motion:       { value: 'auto',              valid: oneOf('auto', 'full', 'reduce') },
+  onboarded:    { value: false,               valid: boolean },
+  logOpen:      { value: true,                valid: boolean },
+  usedKeyboard: { value: false,               valid: boolean },
+  difficulty:   { value: DEFAULT_DIFFICULTY,  valid: oneOf(...DIFFICULTY_TIERS) },
+};
+
+/** Defaults, overlaid with only the stored keys the schema recognises and accepts. */
+function sanitizeSettings(stored) {
+  const out = {};
+  for (const key in SETTINGS_SCHEMA) out[key] = SETTINGS_SCHEMA[key].value;
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return out;
+  for (const key in SETTINGS_SCHEMA) {
+    if (!Object.hasOwn(stored, key)) continue;
+    const candidate = stored[key];
+    if (SETTINGS_SCHEMA[key].valid(candidate)) out[key] = candidate;
+  }
+  return out;
+}
+
+export { SETTINGS_SCHEMA, sanitizeSettings };
+
 export const settings = (() => {
-  let value = { motion: 'auto', onboarded: false, logOpen: true, usedKeyboard: false };
+  let value = sanitizeSettings(null);
   try {
     const raw = storage?.getItem(SETTINGS_KEY);
-    if (raw) value = { ...value, ...JSON.parse(raw) };
-  } catch { /* ignore */ }
+    if (raw) value = sanitizeSettings(JSON.parse(raw));
+  } catch { /* unreadable or unparseable: the defaults already stand */ }
   return {
     get(key) { return value[key]; },
     all() { return { ...value }; },
@@ -191,6 +238,11 @@ export const settings = (() => {
      *  expensive to run per keystroke, which is what unguarded flag-setting
      *  call sites were doing. */
     set(key, v) {
+      // A write the schema does not recognise is refused rather than stored: the
+      // reader would drop it on the next load anyway, and a setting that appears
+      // to stick until reload is worse than one that never claimed to.
+      const rule = SETTINGS_SCHEMA[key];
+      if (!rule || !rule.valid(v)) return value[key];
       if (Object.is(value[key], v)) return v;
       value[key] = v;
       try { storage?.setItem(SETTINGS_KEY, JSON.stringify(value)); } catch { /* private mode */ }

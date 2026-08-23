@@ -16,7 +16,16 @@ export const RESOURCE_KEYS=['command','insight','essence'];
 export const RESOURCE_CAPS={command:6,insight:5,essence:4};
 export const RESOURCE_CEILING=10;
 export const REGROUP_RECOVERY=2;
+/* Core damage one active Defense prevents from its lane per turn cycle, and the
+ * channel counters a Ritual needs before it resolves. Both are stated verbatim in
+ * the in-app glossary, so both are named rather than inlined. */
+export const CORE_PREVENTION_PER_DEFENSE=2;
+export const RITUAL_CHANNEL=3;
 export const DRAW_PER_REFRESH=2;
+/* The extra card the seat that acts second draws at its first refresh (§ Card draw
+ * in docs/match-rules.md). Exported so the pre-match and mulligan copy can state the
+ * real opening-hand totals rather than restating a literal that has already moved once. */
+export const ON_THE_DRAW_BONUS=1;
 /* The armour divisor is now the *only* dampener on an undefended lane (the breach ceiling
  * below applies to contested lanes only), so it carries the pacing on its own. At 4 the
  * median match fell to 7 rounds and 26% of matches ended inside 5; at 5 the median sits at
@@ -29,8 +38,15 @@ export const DIFFICULTY_TIERS=['recruit','veteran','sovereign'];
 export const DEFAULT_DIFFICULTY='veteran';
 export const EVENT_TYPES=['phase','mulligan','draw','discard','fatigue','play','resource-spend','resource-gain','deploy-trigger','trap-sprung','power-change','unit-moved','combat-clash','combat-strike','core-damage','damage-prevented','unit-destroyed','support-disabled','support-removed','ritual-charge','ritual-resolve','spell-resolve','law-restricted','virus-delay','deity-convert','android-automate','response-copy','keyword-note','match-end'];
 
+/* The family classification is exported because it is a rule, not an implementation
+ * detail: the deck builder counts entities against supports, and the glossary tells
+ * the player which is which. Both used to keep their own copy of these lists, which
+ * is the same duplication that let the armour and opening-hand copy drift out of
+ * step with the engine. There is one list; everything reads it. */
 export const ENTITY_FAMILIES=new Set(['Specimen','Monster','Knight','Warrior','Magician','Operative','Dragon','Deity','Android','God','Ruler']);
-const SUPPORT_FAMILIES=new Set(['Weapon','Environment','Defense','Base','Trap','Reaction','Response','Law','Hex','Plague','Virus','Ritual','World']);
+export const SUPPORT_FAMILIES=new Set(['Weapon','Environment','Defense','Base','Trap','Reaction','Response','Law','Hex','Plague','Virus','Ritual','World']);
+/* Everything else resolves the moment it is played and never occupies a slot. */
+export const IMMEDIATE_FAMILIES=new Set(['Item','Action','Spell','Disaster']);
 const INFRA_FAMILIES=new Set(['Defense','Base']);
 const INERT_FAMILIES={Operative:'division keyword trigger',God:'battlefield decree',Ruler:'leader activation',World:'world modifier'};
 const other=side=>side==='player'?'rival':'player';
@@ -180,7 +196,7 @@ function dealCoreDamageMutable(state,defenderSide,amount,laneIndex,{effect=false
   let dealt=incoming,prevented=0;
   if(lane){
     const defenses=lane.supports.filter(s=>s.card.family==='Defense'&&!isDisabled(state,s));
-    const remaining=Math.max(0,defenses.length*2-defender.corePreventionUsed[laneIndex]);
+    const remaining=Math.max(0,defenses.length*CORE_PREVENTION_PER_DEFENSE-defender.corePreventionUsed[laneIndex]);
     prevented=Math.min(incoming,remaining);
     defender.corePreventionUsed[laneIndex]+=prevented;
     dealt=incoming-prevented;
@@ -564,9 +580,9 @@ function ritualStepMutable(state){
     for(const support of [...lane.supports]){
       if(support.card.family!=='Ritual'||support.ready)continue;
       if(lawBlocks(state,side,'Ritual',{lane:laneIndex,cardId:support.card.id}))continue;
-      support.counters=Math.min(3,(support.counters||0)+1);
+      support.counters=Math.min(RITUAL_CHANNEL,(support.counters||0)+1);
       emit(state,'ritual-charge',{side,lane:laneIndex,cardId:support.card.id,amount:support.counters});
-      if(support.counters===3){
+      if(support.counters===RITUAL_CHANNEL){
         support.ready=true;
         lane.supports=lane.supports.filter(s=>s.uid!==support.uid);
         discardCard(state,side,support.card,'ritual');
@@ -696,7 +712,7 @@ export function projectLaneDamage(state,attackerSide,laneIndex){
       if(kills===dp.length)breach+=armourBreach(raw,{cap:MAX_LANE_BREACH});
     }
   }
-  const prevention=Math.max(0,dLane.supports.filter(s=>s.card.family==='Defense'&&!isDisabled(state,s)).length*2-state.players[defenderSide].corePreventionUsed[laneIndex]);
+  const prevention=Math.max(0,dLane.supports.filter(s=>s.card.family==='Defense'&&!isDisabled(state,s)).length*CORE_PREVENTION_PER_DEFENSE-state.players[defenderSide].corePreventionUsed[laneIndex]);
   return Math.max(0,breach-prevention);
 }
 export function laneThreat(state,side){
@@ -858,7 +874,7 @@ export function completePlayerTurn(state){
    * the opening hand. The compensation stays because it is still the correct side to
    * favour and it costs nothing; it is not a solution. */
   next.active='rival';next.turnCount+=1;
-  refreshMutable(next,'rival',{drawCard:true,drawCount:DRAW_PER_REFRESH+(next.players.rival.turnNumber===0?1:0)});
+  refreshMutable(next,'rival',{drawCard:true,drawCount:DRAW_PER_REFRESH+(next.players.rival.turnNumber===0?ON_THE_DRAW_BONUS:0)});
   if(next.phase==='ended')return checkWinner(next);
   emit(next,'phase',{phase:'main',side:'rival'},'Rival main phase began.');
   runAiMainMutable(next);

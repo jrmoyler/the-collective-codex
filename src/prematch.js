@@ -6,6 +6,7 @@ import { h, settings } from './core.js';
 import { openDialog, toast } from './ui.js';
 import { termLink } from './terms.js';
 import { deckProfile } from '../deck-store.js';
+import { ARMOUR_CONTESTED, ARMOUR_OPEN, OPENING_DRAW_SENTENCE, curveAt } from './rules-copy.js';
 import * as engine from '../match-engine.js';
 
 const TIERS = [
@@ -73,11 +74,11 @@ export function preMatchDialog({ deckCards }) {
           h('div', { class: 'preBlock' },
             h('h3', {}, 'The match'),
             h('ul', {},
-              h('li', {}, '20 ', termLink('core'), ' each. Three ', termLink('lane', 'lanes'), ' resolve independently. No turn limit.'),
-              h('li', {}, 'Resources ramp ', h('code', {}, `${line(1)} → ${line(3)} → ${line(5)}`), ' (C/I/E).'),
+              h('li', {}, `${engine.STARTING_CORE} `, termLink('core'), ' each. Three ', termLink('lane', 'lanes'), ' resolve independently. No turn limit.'),
+              h('li', {}, 'Resources ramp ', h('code', {}, `${curveAt(1)} → ${curveAt(3)} → ${curveAt(5)}`), ' (C/I/E).'),
               h('li', {}, 'Units arrive ', termLink('exhausted'), ' — they defend at once but cannot attack until your next ', termLink('refresh'), '.'),
-              h('li', {}, termLink('armour'), ' cuts Core damage to ', h('code', {}, 'min(⌈raw/4⌉, 3)'), ' — raw power is not face damage.'),
-              h('li', {}, 'You draw 1 on your opening refresh and 2 every refresh after. Running out of deck deals escalating unpreventable ', termLink('fatigue'), ' damage — a second way to lose.'),
+              h('li', {}, termLink('armour'), ' divides Core damage down — ', h('code', {}, ARMOUR_CONTESTED), ' against a defended lane, ', h('code', {}, ARMOUR_OPEN), ' and uncapped against an empty one.'),
+              h('li', {}, OPENING_DRAW_SENTENCE, ' Running out of deck deals escalating unpreventable ', termLink('fatigue'), ' damage — a second way to lose.'),
             ),
           ),
         ),
@@ -98,4 +99,3 @@ export function preMatchDialog({ deckCards }) {
   });
 }
 
-function line(t) { const r = engine.resourceCurve(t); return `${r.command}/${r.insight}/${r.essence}`; }

@@ -10,16 +10,27 @@ on:
       - 'scripts/materialize-atlas.mjs'
       - 'tests/card-art-integrity.test.mjs'
       - 'scripts/export-card-masters.mjs'
+
+# This job executes scripts that the pull request itself may have modified, so
+# it is given nothing it does not need: read the tree, upload an artifact.
+permissions:
+  contents: read
+
 jobs:
   export:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm install
+      # `npm ci`, not `npm install`: the export job renders the shipped card
+      # masters, and it must render them with the sharp/libvips build the
+      # lockfile pins rather than whatever the registry resolves that morning.
+      - run: npm ci
       - run: npm run export:cards
       - uses: actions/upload-artifact@v4
         with:

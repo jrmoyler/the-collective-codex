@@ -6,10 +6,11 @@
   "scripts":{
     "build":"node scripts/build.mjs",
     "test":"node --test tests/*.test.mjs",
-    "check":"npm run test && npm run build",
+    "audit":"npm audit --audit-level=high",
+    "check":"npm run test && npm run build && npm run audit",
     "audit:art":"node --test tests/card-art-integrity.test.mjs",
     "rebuild:art":"node scripts/rebuild-atlas-from-sheets.mjs",
     "export:cards":"node scripts/export-card-masters.mjs"
   },
-  "devDependencies":{"sharp":"^0.34.3"}
+  "devDependencies":{"sharp":"^0.35.3"}
 }
