@@ -6,14 +6,29 @@ on:
   pull_request:
     branches:
       - main
+
+# Least privilege, stated explicitly. Without this block the job inherits the
+# repository default, which on many repos is a read/write GITHUB_TOKEN — far
+# more than a job that only reads the tree, runs node --test and writes to
+# dist/ has any use for.
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      # test + build + `npm audit --audit-level=high`. The audit gate is
+      # blocking on purpose: this project has exactly one devDependency, so a
+      # false alarm costs one pinned bump, while a missed advisory in the image
+      # pipeline ships a native decoder with known CVEs into every contributor's
+      # checkout and into the card-master export job below.
       - run: npm run check

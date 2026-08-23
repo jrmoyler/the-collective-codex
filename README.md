@@ -60,11 +60,17 @@ The implemented resource curve, combat model, family-rule interpretations, AI be
 npm install
 npm run test
 npm run build
-npm run check
+npm run audit        # npm audit --audit-level=high
+npm run check        # test + build + audit; this is what CI runs
 npm run audit:art
 npm run export:cards
 npm run rebuild:art
 ```
+
+`npm run check` is the gate. It includes a **blocking** `npm audit --audit-level=high`: the
+one devDependency is `sharp`, a native image decoder that the art pipeline and the card-master
+export job both run over repository bytes, so an advisory against it is not background noise.
+A false alarm costs one pinned bump.
 
 `npm run export:cards` writes all 1,134 card masters to `exports/cards/` as **1500×2100 PNG** frames. The frame is native; the art panel inside it is upscaled from the 80×80 atlas tile, as described under [Artwork resolution](#artwork-resolution). For a quick local smoke test:
 
@@ -89,6 +95,28 @@ The default is exactly **80×80** and must stay there: the resulting atlas SHA-2
 
 - Build command: `npm run build`
 - Output directory: `dist`
+
+It also sets the response headers. The application is pure static files with no backend, so
+the headers are the only server-side control there is:
+
+| Header | Value | Why |
+| --- | --- | --- |
+| `Content-Security-Policy` | `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` | Nothing is loaded cross-origin, nothing is fetched, no form posts. |
+| `X-Content-Type-Options` | `nosniff` | |
+| `Referrer-Policy` | `no-referrer` | Card ids and deck filters live in the URL fragment. |
+| `Cross-Origin-Opener-Policy` / `Cross-Origin-Resource-Policy` | `same-origin` | |
+| `Permissions-Policy` | camera, microphone, geolocation, payment, USB, sensors all denied | A card game needs none of them. |
+
+The policy has **no `unsafe-inline` anywhere**, which is possible because `src/core.js`
+exposes no markup-parsing escape hatch — there is not one `innerHTML` write in the bundle —
+and because `index.html`'s single inline style (the `<noscript>` notice) was moved to a class
+in `src/css/03-reset.css`. Custom properties are still written from JavaScript;
+`element.style.setProperty()` is CSSOM and is not governed by `style-src`. The whole app —
+codex, deck builder, pre-match dialog and a live match — was loaded under this exact policy in
+Chromium with zero violations before it was committed.
+
+If you add a stylesheet host, an analytics script or a remote font, the policy is the file to
+change, and the app should be re-checked under it rather than the directive relaxed by reflex.
 
 ## Card front contract
 

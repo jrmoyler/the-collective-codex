@@ -59,3 +59,14 @@ img { max-width: 100%; }
   overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
   white-space: nowrap; border: 0;
 }
+
+/* The no-JavaScript notice. It carries a class rather than a style attribute so
+   the deployed Content-Security-Policy can use `style-src 'self'` with no
+   `unsafe-inline`; index.html has no other inline style. It is deliberately not
+   token-dependent — if the stylesheet loads but the module graph does not, this
+   is the only thing on screen, and it must read on the bare background. */
+.noscriptNotice {
+  padding: 24px;
+  font: 16px/1.5 system-ui, sans-serif;
+  color: #F5F5F5;
+}

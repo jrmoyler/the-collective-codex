@@ -55,7 +55,7 @@ async function bundleCss() {
 }
 
 const rootFiles = ['index.html', 'styles.css', 'match.css', 'ui.css', 'app.js', 'card-canon.js', 'match-engine.js', 'deck-store.js'];
-const srcFiles = ['core.js', 'cards.js', 'ui.js', 'terms.js', 'glossary.js', 'vgrid.js', 'motion.js', 'screen-codex.js', 'screen-deck.js', 'screen-match.js', 'screen-static.js', 'prematch.js'];
+const srcFiles = ['core.js', 'cards.js', 'ui.js', 'terms.js', 'rules-copy.js', 'glossary.js', 'vgrid.js', 'motion.js', 'screen-codex.js', 'screen-deck.js', 'screen-match.js', 'screen-static.js', 'prematch.js'];
 const fontFiles = ['space-grotesk-latin-var.woff2', 'jetbrains-mono-latin-var.woff2'];
 
 await bundleCss();

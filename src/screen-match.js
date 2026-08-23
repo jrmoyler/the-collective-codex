@@ -11,6 +11,8 @@ import { cardById, divisionById, FAMILY_MARK, makeTile, paintTile, cardLabel, ha
 import { toast, announce, confirmDialog, openDialog } from './ui.js';
 import { termLink } from './terms.js';
 import { createMotion } from './motion.js';
+import { ARMOUR_TOOLTIP, OPENING_HAND_TOTAL } from './rules-copy.js';
+import { STARTING_CORE, OPENING_HAND, DRAW_PER_REFRESH } from '../match-engine.js';
 import * as engine from '../match-engine.js';
 
 const LANES = engine.LANE_NAMES;
@@ -19,7 +21,10 @@ const RESOURCES = [
   ['insight', 'I', 'Insight'],
   ['essence', 'E', 'Essence'],
 ];
-const STARTING_CORE = engine.STARTING_CORE ?? 20;
+/* Was `engine.STARTING_CORE ?? 20`. The fallback was a second, silent copy of an
+   engine constant: if the export were ever renamed the HUD would keep drawing a
+   20-segment Core bar for a game that no longer starts at 20, and nothing would
+   fail. The engine is a hard dependency of this screen — let it be one. */
 
 export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, onReplaySeed }) {
   let match = null;
@@ -366,7 +371,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       setAttr(cell.el, 'data-dir', out === 0 && inc === 0 ? 'none' : net >= 0 ? 'out' : 'in');
       const open = theirs.length === 0 && mine.length > 0;
       setText(cell.status, open ? 'OPEN — after armour' : theirs.length ? 'contested' : 'empty');
-      setAttr(cell.el, 'title', `Damage shown is what actually lands: Core armour reduces a raw hit to min(ceil(raw/4), 3) before Defense prevention.`);
+      setAttr(cell.el, 'title', ARMOUR_TOOLTIP);
       setClass(cell.el, 'laneCursor', i === laneCursor);
       setAttr(cell.el, 'aria-label', `${LANES[i]}. Your power ${myPower}, rival power ${theirPower}. If the turn ends now, ${out} Core damage lands on the rival and ${inc} on you, after armour.${open ? ' The rival lane is open.' : ''} Activate to target this lane.`);
       cell.el.tabIndex = i === laneCursor ? 0 : -1;
@@ -411,7 +416,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     const selected = handIndex === null ? null : hand[handIndex];
     setText(handHint, hand.length
       ? (selected ? `${selected.name} selected — choose a lane (${['a', 's', 'd'].join(' / ')}) then Enter, or click a lane.` : 'Select a card (1–9), then a lane (a / s / d), then Enter.')
-      : `No cards in hand — you draw ${engine.DRAW_PER_REFRESH ?? 1} at refresh. Deck ${p.deck.length}.`);
+      : `No cards in hand — you draw ${DRAW_PER_REFRESH} at refresh. Deck ${p.deck.length}.`);
   }
 
   const SHORT_REASON = [
@@ -622,10 +627,10 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         h('h2', {}, 'Commit your opening hand'),
         h('p', {}, 'Replaced cards go to the ', h('b', {}, 'bottom of your deck'), ' and are immediately redrawn. You may do this once.'),
         h('ul', { class: 'mullRules' },
-          h('li', {}, '20 ', termLink('core'), ' each side · reduce theirs to 0, by combat, by effect, or by ', termLink('fatigue')),
+          h('li', {}, `${STARTING_CORE} `, termLink('core'), ' each side · reduce theirs to 0, by combat, by effect, or by ', termLink('fatigue')),
           h('li', {}, 'Three ', termLink('lane', 'lanes'), ' resolve independently'),
           h('li', {}, termLink('power'), ' is attack ', h('b', {}, 'and'), ' durability'),
-          h('li', {}, 'You draw 1 on your opening ', termLink('refresh'), ' and 2 every refresh after, so a kept hand of 5 becomes 6'),
+          h('li', {}, `You draw ${DRAW_PER_REFRESH} at every `, termLink('refresh'), `, the opening one included, so a kept hand of ${OPENING_HAND} becomes ${OPENING_HAND_TOTAL}`),
           h('li', {}, 'The rival takes its own one-time mulligan; how greedy it is depends on the difficulty tier'),
         ),
       ),
