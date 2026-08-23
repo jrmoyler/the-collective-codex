@@ -452,3 +452,49 @@ test('the tile note never grows past two lines worth of content', () => {
   paintTile(tile, cards.find(c => c.family === 'Operative'), { note: 'Playable here', noteKind: 'ok' });
   assert.equal(tile.querySelectorAll('.cardNote').length, 1);
 });
+
+/* ================= canon query: prototype-shaped input ================= */
+
+/* These are the URL-facing lookups. `#/codex?sort=…&c=…` is a shareable link, so
+ * whatever is in it is authored by whoever sent it. core.js already refuses to
+ * resolve a data-action off Object.prototype for exactly this reason; the canon
+ * query tables are the other place a raw string indexes a table, and they used
+ * to be object literals. */
+
+const { queryCards, SORT_LABELS } = cardsMod;
+
+test('queryCards never resolves a sort comparator off Object.prototype', () => {
+  // '__proto__' resolved to Object.prototype: truthy, not callable, so
+  // Array#sort threw mid-render and took the whole Codex screen down.
+  const canonical = queryCards({ sort: 'division', family: 'Warrior' }).map(c => c.id);
+  for (const hostile of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+    let out;
+    assert.doesNotThrow(() => { out = queryCards({ sort: hostile, family: 'Warrior' }); }, `sort=${hostile} threw during render`);
+    assert.ok(Array.isArray(out), `sort=${hostile} did not return a list`);
+    // Unknown sort falls back to the stored canon order, exactly like 'division'.
+    assert.deepEqual(out.map(c => c.id), canonical);
+  }
+});
+
+test('queryCards never resolves a cost band off Object.prototype', () => {
+  const everything = queryCards({}).length;
+  for (const hostile of ['__proto__', 'constructor', 'toString']) {
+    // An inherited member used as a [min,max] pair filtered nothing while
+    // looking like a filter had been applied.
+    assert.equal(queryCards({ cost: hostile }).length, everything, `cost=${hostile} was treated as a band`);
+  }
+  assert.ok(queryCards({ cost: '0-3' }).length < everything, 'a real band must still filter');
+});
+
+test('every sort the UI offers has a comparator behind it', () => {
+  // SORT_LABELS is derived from the comparator table, so a label can no longer
+  // exist without one — this pins that they stay one table.
+  const ids = queryCards({ sort: 'division' }).map(c => c.id);
+  for (const key of Object.keys(SORT_LABELS)) {
+    const sorted = queryCards({ sort: key });
+    assert.equal(sorted.length, ids.length);
+    if (key !== 'division') {
+      assert.notEqual(sorted.map(c => c.id).join(), ids.join(), `sort=${key} is offered in the UI but changes nothing`);
+    }
+  }
+});

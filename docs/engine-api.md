@@ -108,6 +108,22 @@ is attributable to exactly one event.
 To follow a match incrementally, remember the last `seq` you rendered and replay
 `state.events.filter(e => e.seq > lastSeq)`.
 
+**Event records are frozen and are shared across states.** Every record is `Object.freeze`d
+the moment it is emitted, and the structural copy behind every transition shares frozen
+objects by reference instead of rebuilding them — the same treatment canon cards get. So
+`playCard(state, …).events[0] === state.events[0]`, while the two *arrays* stay independent
+and appending to one is invisible to the other.
+
+This is a performance contract, not a stylistic one. The stream is the match's whole audit
+trail and never shrinks (`state.log` is capped at 60 lines; `state.events` is not), so
+rebuilding it field-by-field on every `playCard` and every `resolveCombat` made the cost of
+taking a turn a function of how many turns had already been taken: in a measured sovereign
+match the array reached 366 records and 58% of the cloned bytes by round 11, and the same AI
+turn cost 2.6 ms in round 1 against 21.8 ms in round 9. Consumers must therefore treat an
+emitted event as read-only — a write throws in strict mode, and would otherwise be rewriting
+history that other state objects are also holding. Both properties are asserted in
+`tests/engine-state-sharing.test.mjs`.
+
 ### 3.1 Event catalogue
 
 | `type` | Extra fields | Fired when | `text`? |

@@ -187,6 +187,12 @@ class ElementStub extends Node {
   getBoundingClientRect() { return { top: 0, left: 0, right: this.clientWidth, bottom: this.clientHeight, width: this.clientWidth, height: this.clientHeight }; }
 }
 
+/* Document-level listeners are modelled because two behaviours depend on them
+ * and on nothing else: the dialog layer owns exactly one capture-phase `keydown`
+ * on the document for Escape (src/ui.js), and the glossary popover dismisses the
+ * same way. Without this the module cannot even be imported under test, which is
+ * how the overlay layer ended up with no coverage of the promise it returns. */
+const documentListeners = new Map();
 const documentStub = {
   _root: true,
   createElement: (tag) => new ElementStub(tag),
@@ -195,11 +201,28 @@ const documentStub = {
   querySelector: (sel) => documentStub.body.querySelector(sel),
   querySelectorAll: (sel) => documentStub.body.querySelectorAll(sel),
   activeElement: null,
+  addEventListener(type, fn) {
+    if (!documentListeners.has(type)) documentListeners.set(type, []);
+    documentListeners.get(type).push(fn);
+  },
+  removeEventListener(type, fn) {
+    const list = documentListeners.get(type) || [];
+    const i = list.indexOf(fn);
+    if (i >= 0) list.splice(i, 1);
+  },
+  /** Dispatch straight at the document, as a capture-phase listener sees it. */
+  dispatch(type, init = {}) {
+    const ev = { type, target: documentStub, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}, ...init };
+    for (const fn of (documentListeners.get(type) || []).slice()) fn(ev);
+    return ev;
+  },
+  listenerCount: (type) => (documentListeners.get(type) || []).length,
 };
 
 /** Installs the stub on globalThis and returns a handle for driving it.
  *  Call this BEFORE dynamically importing any src/ module. */
 export function installDom() {
+  documentListeners.clear();
   documentStub.documentElement = new ElementStub('html');
   documentStub.documentElement._root = true;      // the top of the tree: isConnected stops here
   documentStub.body = new ElementStub('body');
@@ -253,6 +276,10 @@ export function installDom() {
     getHash() { return hash; },
     fire,
     listenerCount(type) { return (events.get(type) || []).length; },
+    /** Fire an event at `document` itself — where the dialog layer's single
+     *  Escape handler and the popover's dismissal listener live. */
+    fireOnDocument(type, init) { return documentStub.dispatch(type, init); },
+    documentListenerCount(type) { return documentStub.listenerCount(type); },
   };
 }
 
