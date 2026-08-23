@@ -260,7 +260,13 @@ test('the Core history is chart-ready and ends on the final round',()=>{
 /* ---------- fatigue ---------- */
 
 test('drawing from an empty doctrine deals escalating fatigue damage and ends the match',()=>{
-  let state=mainState();
+  /* The rival draws from an inert doctrine (every card costs 9/9/9, above every
+   * resource cap) so it can never deploy and never deals combat damage. The
+   * mechanic under test is the fatigue clock, and it has to be the only thing
+   * that can move this Core — otherwise the test is really measuring how hard
+   * the rival hits, and it fails the next time the rival gets any better at
+   * hitting. It did exactly that when the on-the-draw compensation landed. */
+  let state=mainState(filler('P'),inert('R'));
   state.players.player.deck=[];
   const before=state.players.player.core;
   state.players.player.core=6;

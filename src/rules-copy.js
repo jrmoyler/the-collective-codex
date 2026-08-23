@@ -21,7 +21,7 @@
 
 import {
   CORE_ARMOUR_DIVISOR, FLYING_ARMOUR_PIERCE, MAX_LANE_BREACH,
-  OPENING_HAND, DRAW_PER_REFRESH, ON_THE_DRAW_BONUS,
+  OPENING_HAND, DRAW_PER_REFRESH, ON_THE_DRAW_BONUS, ON_THE_DRAW,
   REGROUP_RECOVERY, RESOURCE_CAPS, RESOURCE_KEYS, resourceCurve,
 } from '../match-engine.js';
 
@@ -74,10 +74,21 @@ export const OPENING_HAND_TOTAL = OPENING_HAND + DRAW_PER_REFRESH;
 /** 5 + 3 = 8: the second seat's, which is one card ahead. */
 export const ON_THE_DRAW_TOTAL = OPENING_HAND + DRAW_PER_REFRESH + ON_THE_DRAW_BONUS;
 
+/** `1 Command, 1 Insight and 1 Essence` — the resource half of the on-the-draw
+ *  grant, written out in engine order and omitting anything set to zero, so the
+ *  sentence stays true if a balance pass drops one of them. */
+export const ON_THE_DRAW_RESOURCES = RESOURCE_KEYS
+  .filter(k => ON_THE_DRAW[k] > 0)
+  .map(k => `${ON_THE_DRAW[k]} ${k[0].toUpperCase()}${k.slice(1)}`)
+  .join(', ')
+  .replace(/, ([^,]*)$/, ' and $1');
+
 export const OPENING_DRAW_SENTENCE =
   `You draw ${DRAW_PER_REFRESH} at every refresh, the opening one included, so a kept hand of ${OPENING_HAND} becomes ` +
-  `${OPENING_HAND_TOTAL}. The seat that acts second draws ${ON_THE_DRAW_BONUS} extra at its first refresh and opens on ` +
-  `${ON_THE_DRAW_TOTAL}; that is the only asymmetry between the seats.`;
+  `${OPENING_HAND_TOTAL}. The seat that acts second is compensated once, at its first refresh` +
+  (ON_THE_DRAW_BONUS ? `: ${ON_THE_DRAW_BONUS} extra card, opening on ${ON_THE_DRAW_TOTAL}` : '') +
+  (ON_THE_DRAW_RESOURCES ? `${ON_THE_DRAW_BONUS ? ', and ' : ': '}${ON_THE_DRAW_RESOURCES}` : '') +
+  `. Acting second is a real disadvantage — the first seat attacks into a board that has not attacked yet — and that grant is what pays for it.`;
 
 export const FATIGUE_SENTENCE =
   `You draw ${DRAW_PER_REFRESH} cards at every refresh. Drawing from an empty deck instead deals escalating, unpreventable ` +

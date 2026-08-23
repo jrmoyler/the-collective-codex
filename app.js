@@ -6,7 +6,7 @@
  * state change (A-1 … A-4).
  */
 
-import { h, delegate, createStore, router, settings, applyMotion, storageAvailable, pad2 } from './src/core.js';
+import { h, delegate, createStore, router, settings, applyMotion, storageAvailable, localStore, pad2 } from './src/core.js';
 import { cards, cardById, divisions, gateAtlas } from './src/cards.js';
 import { mountUI, toast, announce, dialogOpen, closeDialog, hidePopover, popoverOpen } from './src/ui.js';
 import { installTermHandler } from './src/terms.js';
@@ -17,6 +17,8 @@ import { createHome, createRules, runPrimer } from './src/screen-static.js';
 import { buildRivalDeck } from './deck-store.js';
 import { preMatchDialog } from './src/prematch.js';
 import * as engine from './match-engine.js';
+import { saveMatch, loadMatch, clearMatch } from './match-codec.js';
+import { loadRuleset, rulesetDiff } from './ruleset.js';
 
 const app = document.querySelector('#app');
 
@@ -28,6 +30,78 @@ const store = createStore({
 
 applyMotion();
 gateAtlas();
+
+/* ---------- balance ----------
+ *
+ * One resolution, at boot, shared by every match this session starts. Doing it
+ * per match would mean a ruleset could change between the pre-match screen that
+ * described a game and the match that played it. Anything that is not the
+ * shipped balance is announced rather than absorbed: a player comparing their
+ * numbers against the rules screen must be able to see why they disagree. */
+/* `deckSize` is pinned: the deck builder, the Codex counters and the doctrine
+ * analysis are all built around a 30-card doctrine, so a config that changed it
+ * would leave a client that cannot start a match at all — the one failure a
+ * remote balance knob must never be able to cause. */
+const { rules: activeRules, source: rulesSource, error: rulesError, pinned } = loadRuleset(localStore, { pin: ['deckSize'] });
+if (rulesError) console.warn('[app] ruleset override ignored:', rulesError);
+if (pinned) console.warn('[app] ruleset fields this client pins and ignored:', pinned.join(', '));
+if (rulesSource === 'override') {
+  for (const warning of activeRules.warnings) console.warn('[ruleset]', warning);
+  console.info('[ruleset] active override', activeRules.digest, rulesetDiff(activeRules));
+}
+
+/* ---------- match persistence ----------
+ *
+ * A match used to live only in a closure, so a reload, a crashed tab, or a
+ * phone that backgrounded the page long enough for the OS to reclaim it all
+ * discarded round eleven without warning — including the reload this very file
+ * recommends when something goes wrong. The board is now written down after
+ * every state change and read back at boot.
+ *
+ * Writes are debounced to an animation frame because a single end-of-turn
+ * resolves the player's combat, the rival's whole main phase and the rival's
+ * combat: one turn is several store writes, and JSON.stringify of a late-game
+ * board is not something to run three times in the same frame while a timeline
+ * is playing.
+ *
+ * Debounced, but never left pending. Animation frames stop firing the moment a
+ * tab is hidden, which is precisely the moment this feature exists for — a
+ * player switching apps on a phone that is about to have its tab reclaimed. So
+ * a pending write is flushed synchronously on the way out, on both events,
+ * because `pagehide` is the reliable one on iOS and `visibilitychange` is the
+ * one that fires when the app is merely backgrounded. */
+let persistedMatch = null, persistPending = false, persistTimer = 0;
+function flushMatch() {
+  if (!persistPending) return;
+  persistPending = false;
+  if (persistTimer) { cancelAnimationFrame(persistTimer); persistTimer = 0; }
+  if (!persistedMatch) clearMatch(localStore);
+  else saveMatch(localStore, persistedMatch);
+}
+store.onChange((state, keys) => {
+  if (!localStore || !keys.includes('match')) return;
+  if (state.match === persistedMatch) return;
+  persistedMatch = state.match;
+  persistPending = true;
+  if (persistTimer) cancelAnimationFrame(persistTimer);
+  persistTimer = requestAnimationFrame(() => { persistTimer = 0; flushMatch(); });
+});
+addEventListener('pagehide', flushMatch);
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushMatch(); });
+
+/** Read back a match saved by a previous visit. A refusal is a normal outcome —
+ *  a new build, a retuned ruleset, a hand-edited value — and is never allowed to
+ *  block the boot: the key is dropped and the player gets a clean app. */
+function restoreMatch() {
+  if (!localStore) return null;
+  const result = loadMatch(localStore, cardById, { rules: activeRules });
+  if (result.state) return result.state;
+  if (result.error && result.error !== 'no saved match') {
+    console.warn('[app] saved match discarded:', result.error);
+    clearMatch(localStore);
+  }
+  return null;
+}
 
 /* ---------- shell ---------- */
 
@@ -73,6 +147,7 @@ function launch(ids, options = {}) {
   try {
     const match = engine.createMatch({
       playerDeck, rivalDeck,
+      rules: activeRules,
       seed: options.seed ?? (Date.now() >>> 0),
       difficulty: options.seed ? undefined : (options.difficulty || settings.get('difficulty') || undefined),
     });
@@ -110,6 +185,7 @@ const deckScreen = createDeck({ store, router, onStart: startMatch });
 const codexScreen = createCodex({ store, router, deck: deckScreen.api });
 const matchScreen = createMatchScreen({
   store,
+  rulesNotice: rulesSource === 'override' ? { label: activeRules.label, digest: activeRules.digest, diff: rulesetDiff(activeRules) } : null,
   onExit: () => { matchScreen.clear(); router.go({ view: 'deck', id: null, query: {} }); },
   onRematch: () => launch(deckScreen.api.ids()),
   onReplaySeed: (seed) => launch(deckScreen.api.ids(), { seed }),
@@ -241,6 +317,20 @@ function showKeys() {
 /* ---------- boot ---------- */
 
 if (!location.hash) history.replaceState(null, '', '#/');
+
+/* Before the router runs, so that a deep link straight to #/match resolves to
+ * the restored board instead of being bounced to the deck builder. */
+const restored = restoreMatch();
+if (restored) {
+  persistedMatch = restored;              // already on disk; do not rewrite it
+  matchScreen.setMatch(restored);
+  const ended = restored.phase === 'ended';
+  toast(ended
+    ? `Your last match is still on the board — round ${pad2(restored.round)}, ${restored.winner === 'player' ? 'won' : restored.winner === 'rival' ? 'lost' : 'drawn'}.`
+    : `Match in progress restored — round ${pad2(restored.round)}, Core ${restored.players.player.core} against ${restored.players.rival.core}.`,
+    { duration: 7000 });
+}
+
 router.start();
 
 if (!storageAvailable()) toast('Your doctrine will not be saved in this browser.', { duration: 8000, kind: 'warn' });

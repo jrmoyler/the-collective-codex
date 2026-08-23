@@ -149,9 +149,28 @@ class ElementStub extends Node {
     if (i >= 0) { this.childNodes.splice(i, 1); kid.parentNode = null; }
     return kid;
   }
+  /* Faithful on the two points the keyed reconciler in screen-match.js depends
+   * on: inserting before a node that is already a child MOVES it (so a node
+   * reused across turns keeps its identity, which is what makes animation state
+   * survive a repaint), and a null reference appends. */
+  insertBefore(kid, reference) {
+    if (kid.parentNode) kid.parentNode.removeChild(kid);
+    const at = reference ? this.childNodes.indexOf(reference) : -1;
+    kid.parentNode = this;
+    if (at < 0) this.childNodes.push(kid); else this.childNodes.splice(at, 0, kid);
+    return kid;
+  }
   remove() { if (this.parentNode) this.parentNode.removeChild(this); }
   get firstChild() { return this.childNodes[0] || null; }
+  get lastChild() { return this.childNodes[this.childNodes.length - 1] || null; }
+  get nextSibling() {
+    const siblings = this.parentNode ? this.parentNode.childNodes : [];
+    return siblings[siblings.indexOf(this) + 1] || null;
+  }
   get children() { return this.childNodes.filter(n => n.nodeType === 1); }
+  get childElementCount() { return this.children.length; }
+  get parentElement() { return this.parentNode && this.parentNode.nodeType === 1 ? this.parentNode : null; }
+  prepend(...kids) { for (const kid of kids.reverse()) this.insertBefore(kid, this.firstChild); }
 
   get textContent() { return this.childNodes.map(n => n.textContent).join(''); }
   set textContent(v) {
@@ -200,7 +219,12 @@ const documentStub = {
   createTextNode: (data) => new Text(data),
   querySelector: (sel) => documentStub.body.querySelector(sel),
   querySelectorAll: (sel) => documentStub.body.querySelectorAll(sel),
+  getElementById: (id) => documentStub.body.querySelector(`#${id}`),
   activeElement: null,
+  /* Written by the router on every navigation, and read by nothing here — but a
+   * plain data property is what a real document has, and app.js assigns to it. */
+  title: '',
+  visibilityState: 'visible',
   addEventListener(type, fn) {
     if (!documentListeners.has(type)) documentListeners.set(type, []);
     documentListeners.get(type).push(fn);

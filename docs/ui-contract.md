@@ -311,6 +311,7 @@ The deck pool uses `src/vgrid.js` with `rowH = 288`, `gap = 12`, `minTile = 168`
 .matchScreen[data-phase="mulligan|main|ended"][.logClosed]
   header.mBar
     .barLeft  > h1.srOnly#matchTitle + .barRound + .barPhase + button.barSeed
+              + button.barSeed.barRules?          (only when the balance is overridden)
     .barRight > .btn.btnSmall × n + .skipHost
   .mStage
     section.mBoard
@@ -381,7 +382,15 @@ re-launches the same seed. `#seedNote` is the pre-match verdict on a pasted code
 three states, distinguished by sentence and not by colour alone: `error` (it will not
 decode), `warn` (it decodes but was recorded with a different doctrine, or is a legacy code
 that recorded none) and `ok` (it will replay exactly). No surface may claim a code
-reproduces a match without saying that the doctrine has to match too — it does not. `.hudBias` in the rival HUD prints the difficulty tier and states
+reproduces a match without saying that the doctrine has to match too — it does not.
+
+`button.barRules` exists **only** when the match is running a balance override
+(`state.rules.digest !== CANONICAL_RULES.digest`), and is absent from every shipped build.
+When it is there it is not decoration: a player comparing the board against the Rules screen
+has no other way to learn why the numbers disagree, so the chip names the ruleset, its title
+counts the values that differ, and activating it opens a table of every one of them. The
+debrief carries the same label as a `.endStat`. A build that runs an override silently is a
+build that lies to its player. `.hudBias` in the rival HUD prints the difficulty tier and states
 that the rival drafts from the full canon to mirror the player's profile — it is **not** a
 division bias, and any copy claiming a three-division rival is stale.
 

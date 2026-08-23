@@ -84,7 +84,37 @@ test('the opening-hand totals match what the engine actually deals', () => {
   assert.equal(copy.OPENING_HAND_TOTAL, OPENING_HAND + DRAW_PER_REFRESH);
   assert.equal(copy.ON_THE_DRAW_TOTAL, OPENING_HAND + DRAW_PER_REFRESH + ON_THE_DRAW_BONUS);
   assert.match(copy.OPENING_DRAW_SENTENCE, new RegExp(`becomes ${copy.OPENING_HAND_TOTAL}\\b`));
-  assert.match(copy.OPENING_DRAW_SENTENCE, new RegExp(`opens on\\s+${copy.ON_THE_DRAW_TOTAL}\\b`));
+  assert.match(copy.OPENING_DRAW_SENTENCE, new RegExp(`opening on\\s+${copy.ON_THE_DRAW_TOTAL}\\b`));
+});
+
+test('the copy states the resource half of the on-the-draw grant too', async () => {
+  // The card alone was the whole compensation once, and it did not close the
+  // seat gap; the resources are what did. A sentence that still describes only
+  // the card is the exact defect this module exists to prevent.
+  const { ON_THE_DRAW, RESOURCE_KEYS } = await import('../match-engine.js');
+  for (const key of RESOURCE_KEYS) {
+    if (!ON_THE_DRAW[key]) continue;
+    const label = `${ON_THE_DRAW[key]} ${key[0].toUpperCase()}${key.slice(1)}`;
+    assert.ok(copy.ON_THE_DRAW_RESOURCES.includes(label), `the grant sentence omits ${label}`);
+    assert.ok(copy.OPENING_DRAW_SENTENCE.includes(label), `the opening-draw sentence omits ${label}`);
+  }
+  assert.equal(/\bonly asymmetry\b/.test(copy.OPENING_DRAW_SENTENCE), false, 'the seats differ in more than one way now');
+});
+
+test('a real match grants exactly the resources the copy promises', async () => {
+  const { cards, cardById } = await import('../card-canon.js');
+  const { buildStarterDeck } = await import('../deck-store.js');
+  const engine = await import('../match-engine.js');
+  const deck = buildStarterDeck(cards).map(id => cardById.get(id));
+  const state = engine.completePlayerTurn(engine.mulligan(engine.createMatch({ playerDeck: deck, rivalDeck: deck, seed: 7 }), 'player', []));
+  const granted = {};
+  for (const event of state.events) {
+    if (event.type === 'resource-gain' && event.source === 'On the draw') {
+      assert.equal(event.side, 'rival', 'the grant goes to the seat that acts second');
+      granted[event.resource] = (granted[event.resource] || 0) + event.amount;
+    }
+  }
+  for (const key of engine.RESOURCE_KEYS) assert.equal(granted[key] || 0, engine.ON_THE_DRAW[key], `${key} granted`);
 });
 
 test('a real match deals exactly the hands the copy promises', async () => {

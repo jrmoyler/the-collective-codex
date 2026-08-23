@@ -115,12 +115,29 @@ export function on(root, type, selector, fn, opts) {
  *  then — a half-wired one that nobody calls is worse than none. */
 export function createStore(initial) {
   const state = { ...initial };
+  const listeners = new Set();
   return {
     state,
     /** Merge a patch of top-level keys. Returns the state for chaining. */
     set(patch) {
       for (const k in patch) state[k] = patch[k];
+      /* Subscribers are notified with the KEYS that changed, not just the state,
+       * so a listener interested in one slice (match persistence is interested
+       * in exactly one) does not have to diff the whole store to find out
+       * whether it has work to do. A throwing listener is contained: persistence
+       * is a courtesy and must never be able to interrupt the screen that was
+       * mid-update when it ran. */
+      const keys = Object.keys(patch);
+      for (const listener of listeners) {
+        try { listener(state, keys); }
+        catch (error) { console.error('[store] listener failed', error); }
+      }
       return state;
+    },
+    /** @returns {() => void} unsubscribe */
+    onChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
   };
 }
@@ -251,6 +268,11 @@ export const settings = (() => {
     },
   };
 })();
+
+/** The one localStorage handle in the app, already guarded against the throw a
+ *  blocked-cookies origin raises on mere property access. Null when there is no
+ *  usable storage, which every caller must treat as normal rather than broken. */
+export const localStore = storage;
 
 export function storageAvailable() {
   try { storage?.setItem('collectiveCodex.probe', '1'); storage?.removeItem('collectiveCodex.probe'); return Boolean(storage); }

@@ -17,8 +17,14 @@ Every export that existed before still exists with the same signature and the sa
 `LANE_NAMES`, `ENTITY_FAMILIES`, `resourceCurve`, `createMatch`, `mulligan`, `effectiveCost`,
 `getPlayability`, `playCard`, `resolveCombat`, `completePlayerTurn`.
 
-One export was added: `armourBreach(raw, { pierce, cap })` — the single Core-armour
-calculation, exported so a UI can preview a strike without duplicating the formula (§4.3).
+Every constant listed above is now **derived from the shipped ruleset** rather than declared
+here, and keeps its old name, type and value. `resourceCurve(turn)` and
+`armourBreach(raw, {…})` each take an optional ruleset and default to the shipped one, so
+every existing call site is unchanged. See §12.
+
+One export was added earlier: `armourBreach(raw, { pierce, cap, rules })` — the single
+Core-armour calculation, exported so a UI can preview a strike without duplicating the
+formula (§4.3).
 `MAX_LANE_BREACH` still exists and still means 3, but it is now the ceiling for a
 **contested** lane rather than for every lane.
 
@@ -29,7 +35,7 @@ literals and the UI already restated as prose:
 | --- | --- | --- |
 | `SUPPORT_FAMILIES` | 13 families | The deck builder kept its own copy of this list. |
 | `IMMEDIATE_FAMILIES` | `Item, Action, Spell, Disaster` | The complement of the other two sets; the glossary names it. |
-| `ON_THE_DRAW_BONUS` | `1` | The extra card the second seat draws (§4.5), previously inline in `completePlayerTurn`. |
+| `ON_THE_DRAW_BONUS` | `1` | The extra card the second seat draws (§4.5). `ON_THE_DRAW` carries the full grant, resources included. |
 | `CORE_PREVENTION_PER_DEFENSE` | `2` | Stated verbatim in the in-app Defense definition. |
 | `RITUAL_CHANNEL` | `3` | Stated verbatim in the in-app Channel definition. |
 
@@ -53,7 +59,7 @@ State objects are still treated as immutable by the public API: `mulligan`, `pla
 ## 2. Creating a match
 
 ```js
-createMatch({ playerDeck, rivalDeck, seed = 1, shuffle = true, difficulty, playerDifficulty })
+createMatch({ playerDeck, rivalDeck, seed = 1, shuffle = true, difficulty, playerDifficulty, rules })
 ```
 
 | Option | Type | Meaning |
@@ -63,6 +69,7 @@ createMatch({ playerDeck, rivalDeck, seed = 1, shuffle = true, difficulty, playe
 | `shuffle` | `boolean` | `false` deals the decks in the given order (used by tests). |
 | `difficulty` | `'recruit' \| 'veteran' \| 'sovereign'` | The rival AI tier. Defaults to `DEFAULT_DIFFICULTY` (`'veteran'`), which reproduces pre-upgrade behaviour for existing callers. An unrecognised value throws. |
 | `playerDifficulty` | tier | Only used when something drives the *player* seat with AI (hints, demos, `simulateMatch`). Defaults to `difficulty`. |
+| `rules` | `Ruleset \| object` | A ruleset from `createRuleset()`, or a plain object of overrides that will be validated into one. Defaults to the shipped balance. See §12. |
 
 New fields on the returned state:
 
@@ -77,7 +84,16 @@ state.endReason         // null | 'core' | 'fatigue'
 state.events            // Event[]        — see §3
 state.eventSeq          // number         — highest seq emitted so far
 state.stats             // MatchStats     — see §5
+state.rules             // Ruleset        — the balance this match is played under (§12)
 ```
+
+`state.rules` is deeply frozen, which is load-bearing rather than hygienic: `clone()` shares
+frozen objects by reference, so carrying a ruleset on the state costs one pointer copy per
+cloned state instead of a deep copy of ~90 numbers on every card played.
+
+Deck legality, Core totals and the opening hand are all validated against `state.rules`, not
+against the module's exported constants — `createMatch({ rules: { deckSize: 12 } })` wants
+12-card decks and rejects 30-card ones.
 
 ---
 
@@ -407,10 +423,15 @@ createMatch({ playerDeck, rivalDeck, seed: 'SOV-3FAV-FQF9-TZ8M' })
 * Decoding is forgiving about case, spacing and punctuation, and maps `I`/`L` → `1`, `O` → `0`,
   `U` → `V`. A wrong checksum, unknown tier or wrong length throws with a readable message.
 * An explicit `difficulty` argument to `createMatch` overrides the tier inside the code.
-* Seed + both decks + difficulty fully determine the match. The engine contains no
-  `Math.random`, no `Date.now` and no locale-sensitive comparison; all ordering uses explicit
-  tiebreakers. Whoever calls `createMatch` owns seed generation — that is the only place a
-  clock or RNG belongs.
+* Seed + both decks + difficulty **+ the ruleset** fully determine the match. The engine
+  contains no `Math.random`, no `Date.now`, no wall-clock deadline and no locale-sensitive
+  comparison; all ordering uses explicit tiebreakers, and the AI's search budget is counted in
+  positions rather than milliseconds precisely so that this list stays true on every device.
+  Whoever calls `createMatch` owns seed generation — that is the only place a clock or RNG
+  belongs.
+* The code does **not** encode the ruleset, so a code minted under a balance override replays
+  only against that same override. `state.rules.digest` is what identifies which balance a
+  match was played under, and the UI surfaces it whenever it is not the shipped one (§12.2).
 
 ---
 
@@ -420,8 +441,23 @@ createMatch({ playerDeck, rivalDeck, seed: 'SOV-3FAV-FQF9-TZ8M' })
 DIFFICULTY_TIERS      // ['recruit','veteran','sovereign']
 DEFAULT_DIFFICULTY    // 'veteran'
 normalizeDifficulty(value, fallback?)   // validates; throws on anything else
-AI_TIER_PROFILES      // read-only introspection of the tuned weights
+AI_TIER_PROFILES      // read-only introspection of the SHIPPED weights
+planAiPlays(state, side, tier, { budget })   // plan; `.nodes` reports what it cost
+aiTakeMainPhase(state, side, tier, { budget })
 ```
+
+The tier weights are ruleset data (`rules.tiers`), so the rival's judgement can be retuned
+without a deploy. `AI_TIER_PROFILES` remains the shipped table, for surfaces that describe the
+tiers rather than play against them.
+
+**The search is bounded in positions evaluated, not in milliseconds.** A wall-clock deadline
+would make the rival's decisions depend on how fast the machine is, and this game hands out
+seed codes that promise to reproduce a match — a rival that plays differently on a cold phone
+than on a warm desktop breaks that promise in a way no player could diagnose. `aiNodeBudget`
+(default 2,000) bounds the same worst case identically on every device. At the shipped tiers
+it never binds: a sovereign main phase peaks at 67 evaluations, and the whole rival turn costs
+1–6 ms. Exhausting the budget truncates the plan to the plays already chosen, which is always
+a legal main phase, just a shorter one.
 
 No tier cheats. All three see the same public board, obey the same legality checks and pay the same
 costs. They differ only in how far they think.
@@ -573,27 +609,134 @@ re-derives each claim from `armourBreach`, the draw schedule and `resourceCurve`
 comparing strings to strings. A number that appears on screen and is not derived there is a
 bug, whatever the docs say.
 
-## 11. Known limits
+## 12. Rulesets (`ruleset.js`)
 
-Two problems in this area are **not** engine defects and are not fixed here, because their
-cause is in `card-canon.js` and `deck-store.js`:
+```js
+DEFAULT_RULES        // the shipped values, as a plain object
+CANONICAL_RULES      // the same, built through createRuleset() and frozen
+RULESET_VERSION      // bumped when the SHAPE changes, not when a value is retuned
+createRuleset(overrides) -> Ruleset      // validates untrusted input; never throws
+rulesetDigest(rules) -> 'A1B2C3D'        // stable, order-independent identity
+rulesetDiff(rules)   -> [{key, from, to}]// what differs from the shipped balance
+loadRuleset(storage) -> {rules, source}  // 'shipped' | 'override'
+RULESET_STORAGE_KEY
+```
 
-* **Resources barely bind.** Over a 500-match sovereign sweep the curve grants far more than
-  players spend (utilisation is under a third), and turns end with an empty hand far more
-  often than with an empty pool. The engine-side ratio is as tight as it can honestly be made:
-  the canon's cost and power are drawn from independent hashes, so cost carries no information
-  about strength, and `deck-store.js`'s `draftScore` therefore sorts strictly cheapest-first —
-  the shipped 30-card starter deck averages **1.10 total cost** with an average power of 7.17,
-  and every card in the canon is castable by turn 3. No resource curve that leaves the canon's
-  9-cost cards castable can constrain a deck that costs 1.1 per card. `RESOURCE_CAPS`,
-  `castableTurn` and `deckProfile.curve` are correct instrumentation for a constraint that a
-  cost-correlated canon would restore.
-* **Families that never reach the table.** With support value in `boardEval` the AI now plays
-  the persistent families that have an implementable effect. The ones still absent from real
-  matches are absent because they are **not in the decks**: `buildStarterDeck` and
-  `buildRivalDeck` draft cheapest-first from the canon and neither deck contains a Monster,
-  Defense, Base, Action, Trap, Reaction, Plague, Virus, Spell, Disaster or World. Their event
-  types (`trap-sprung`, `spell-resolve`, `virus-delay`, `support-disabled`, `resource-gain`)
-  are reachable — `tests/engine-invariants.test.mjs` fires them from a support-rich deck — but
-  cannot fire from a deck that holds none of the cards. That is a drafting question, not an
-  evaluation one.
+Every tuning number the engine reads is a field on the ruleset: `deckSize`, `startingCore`,
+`openingHand`, lane capacities, `resourceCaps`, `resourceCeiling`, `regroupRecovery`,
+`corePreventionPerDefense`, `ritualChannel`, `drawPerRefresh`, `onTheDraw`,
+`coreArmourDivisor`, `flyingArmourPierce`, `maxLaneBreach`, `fatigueStep`, `responseCopy`,
+`supportValue`, `tiers`, `aiNodeBudget`.
+
+**The module's exported constants are still the shipped values** (`DECK_SIZE`, `STARTING_CORE`,
+`MAX_LANE_BREACH`, `AI_TIER_PROFILES`, …). They exist for surfaces that *describe* the game —
+the glossary, the rules screen, the deck builder — and a description is about the shipped
+rules. Anything that *resolves* a match reads `state.rules`.
+
+### 12.1 Validation
+
+Overrides are untrusted by construction: a remote payload, a query string, a cached blob from
+three releases ago. `createRuleset` therefore repairs rather than rejects, and reports on
+`rules.warnings`:
+
+| Input | Result |
+| --- | --- |
+| Out of range (`startingCore: 1e9`) | clamped to the schema bound, warned |
+| Unknown key (`secretBackdoor`) | dropped, warned |
+| Wrong type (`resourceCaps: 7`) | field kept at its default, warned |
+| `version` from another build | **entire payload ignored**, warned |
+| Ceiling below the per-turn cap | raised to the cap, warned |
+| Opening hand larger than the doctrine | lowered, warned |
+| `null`, a number, an array | defaults, warned |
+
+A ruleset always comes back playable and frozen. A client that will not start a match is a
+worse outcome than one that starts a slightly repaired one.
+
+### 12.2 Delivery
+
+There is no ruleset endpoint and there cannot be one without changing the CSP in
+`vercel.json` (`default-src 'none'`; the app fetches nothing). `loadRuleset(storage, {pin})`
+reads an optional local override key, validates it exactly as a remote payload would be
+validated, and reports whether the result is the shipped balance or an override. Swapping this
+for a real endpoint is a change to that one function.
+
+`pin` names fields the *consumer* cannot follow a change to, and they are dropped before
+validation. The app pins `deckSize`: the engine plays a 12-card match perfectly well, but the
+deck builder, the Codex counters and the doctrine analysis are all built around 30, so an
+override that moved it would leave a client that cannot start a match at all — the one failure
+a live balance knob must never be able to cause. An override that is entirely pinned away
+reports as `shipped`, so the "not the documented rules" banner never appears over a match that
+is playing the documented rules.
+
+When an override is active the app must say so — the match bar carries a chip naming it, the
+debrief records it, and the chip opens a table of every value that differs. Seed codes do not
+encode the ruleset, so a code minted under an override replays only against that override.
+
+---
+
+## 13. Persistence (`match-codec.js`)
+
+```js
+encodeMatch(state)          -> payload      // JSON-safe
+decodeMatch(payload, {cardById, rules}) -> {state} | {error}
+validateMatch(state, rules) -> null | 'reason'
+saveMatch(storage, state)   -> boolean
+loadMatch(storage, cardById, {rules}) -> {state, savedAt} | {error}
+clearMatch(storage)
+MATCH_SCHEMA, MATCH_STORAGE_KEY
+```
+
+The codec does **not** enumerate the engine's state fields. It walks the state generically and
+rewrites only the two things that are not JSON: canon cards become `{$card: id}` and are
+rehydrated to the shared frozen singletons; the ruleset becomes a digest that is verified
+rather than trusted. A field added to the engine round-trips with no edit here, which is the
+only way a save format survives contact with a living rules engine.
+
+Restoring a *wrong* board is worse than restoring none — the player cannot see that it is
+wrong — so the decoder refuses on: a different `MATCH_SCHEMA`, a different ruleset digest, a
+card id the canon no longer has, an unknown phase, a Core outside `0..startingCore`, resources
+above the ceiling, an over-capacity lane, a non-monotonic event sequence, or a missing seat.
+Every refusal is a returned value, never an exception.
+
+`saveMatch` treats a full origin as an expected outcome: it retries with the oldest events
+trimmed, keeping the board and the sequence counter intact, and only then reports failure.
+
+The guarantee the tests hold is stronger than "it round-trips": a restored match re-encodes
+byte-identically **and plays on identically**, including the AI's decisions.
+
+---
+
+## 14. Known limits
+
+* **Archetype dominance is total.** Seat-averaged over 60 seeds, the curve deck beats a
+  top-heavy deck and a cheap-swarm deck 100% of the time, and top-heavy beats swarm 100% of
+  the time. That ordering is intended — the slack resource curve exists to keep raw power
+  decisive, which is what makes a balanced curve the strongest archetype rather than the
+  weakest — but "intended" and "100%" are different claims, and the second one means deck
+  choice between these three shapes is not a decision. The stress decks are deliberately
+  degenerate (the 30 highest-power cards are also the 30 most expensive, so half of that deck
+  is uncastable); a spread of real player decks would compress the gap. It has not been
+  measured against one, because there are none.
+* **Most matches end on the clock, not on the board.** 43% of curve mirrors and 66% of swarm
+  mirrors end on deck-out fatigue rather than combat damage. See `match-rules.md`
+  § Deck-out fatigue for the measurement and the one ruleset value that trades it back.
+* **Recruit against a cheap-swarm mirror still favours the first seat, 60/40.** The cause is
+  recruit's two-card play limit, not the seat; raising it fixes the mirror and collapses the
+  veteran-over-recruit gap.
+* **The seat compensation is a correction, not a redesign.** The first seat's structural
+  advantage — attacking into a board that has not yet attacked — is still in the combat model.
+  It is now paid for rather than removed, which is why the residual bias tracks the population
+  (even on Core damage, 56/44 on fatigue endings) instead of being uniformly zero.
+* **Families that never reach the table.** The AI plays every persistent family with an
+  implementable effect, and the shipped starter deck now drafts to a curve rather than
+  cheapest-first (average total cost 6.93, average power 9.17, 27 entities and 3 supports,
+  including a Defense, a Monster and two Actions). The families still absent from a normal
+  match are absent because a 30-card deck drawn from a 1,134-card canon holds few of them, not
+  because the engine will not fire them; `tests/engine-invariants.test.mjs` fires them from a
+  support-rich deck.
+* **Resource utilisation is 78%, and the constraint now binds from the other side.** Over 100
+  veteran mirrors both seats together spent 24,368 of the 31,155 resources the curve granted,
+  and finished with 11.8 cards still in hand. The match is hand-limited at the start and
+  draw-limited at the end; the old note here — "utilisation is under a third" and a starter
+  deck averaging 1.10 total cost — predates both the cost-derived power values and the curve
+  draft, and was wrong by a factor of six.

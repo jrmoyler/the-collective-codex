@@ -22,6 +22,35 @@ const { createVGrid } = await import('../src/vgrid.js');
 const cardsMod = await import('../src/cards.js');
 const { cards } = await import('../card-canon.js');
 
+/* ============================== store ============================== */
+
+test('the store notifies subscribers with the keys that changed', () => {
+  const store = createStore({ match: null, codex: {} });
+  const seen = [];
+  const off = store.onChange((state, keys) => seen.push([keys, state.match]));
+  store.set({ codex: { q: 'x' } });
+  store.set({ match: { id: 1 } });
+  assert.deepEqual(seen, [[['codex'], null], [['match'], { id: 1 }]]);
+  off();
+  store.set({ match: null });
+  assert.equal(seen.length, 2, 'unsubscribing actually unsubscribes');
+});
+
+test('a throwing subscriber cannot take the screen down with it', () => {
+  // Match persistence rides on this: a full localStorage must not be able to
+  // interrupt the screen that was mid-update when it filled up.
+  const store = createStore({ match: null });
+  const reached = [];
+  store.onChange(() => { throw new Error('quota'); });
+  store.onChange(() => reached.push(true));
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args);
+  try { assert.doesNotThrow(() => store.set({ match: 1 })); } finally { console.error = original; }
+  assert.deepEqual(reached, [true], 'later subscribers still run');
+  assert.equal(errors.length, 1, 'and the failure is reported rather than swallowed');
+});
+
 /* ============================== h() ============================== */
 
 test('h writes CSS custom properties through setProperty', () => {
