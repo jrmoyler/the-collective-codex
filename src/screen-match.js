@@ -154,15 +154,42 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       h('div', { class: 'coreRow' }, coreNum, h('small', {}, `/${STARTING_CORE}`), critical),
       coreBar,
     );
+    /* The deck and the discard are PILES, not numerals (VD-32). Both are drawn
+       as physical stacks: the deck wears the card back and thins visibly as it
+       runs out, the discard shows the crest of the card that went there last —
+       which is public information in every card game ever printed and was
+       previously reachable only through a dialog. The count stays on both, so
+       the pile is a second carrier and never the only one. */
     const countsEl = h('div', { class: 'hudCounts' });
     const counts = {};
-    for (const key of ['deck', 'hand', 'discard']) {
-      const v = h('b', {});
-      counts[key] = v;
-      countsEl.append(h('button', {
-        type: 'button', class: 'countBtn', dataset: { action: key === 'discard' ? 'openDiscard' : 'noop', side },
-      }, h('small', {}, key), v));
+    const piles = {};
+
+    function pileZone(key, action) {
+      const value = h('b', {});
+      counts[key] = value;
+      const stack = h('span', { class: 'pileStack', 'aria-hidden': 'true', dataset: { depth: '4' } });
+      const face = key === 'deck'
+        ? h('span', { class: 'cardBack' })
+        : h('span', { class: 'pileFace' }, h('span', { class: 'cardArt' }));
+      stack.append(
+        h('span', { class: 'pileWell' }),
+        ...[1, 2, 3, 4].map(i => h('span', { class: 'pileShingle', dataset: { i } })),
+        face,
+      );
+      const el = h('button', {
+        type: 'button', class: 'pileZone backHost', dataset: { action, side },
+      }, stack, h('small', {}, key), value);
+      piles[key] = { el, stack, face, art: face.querySelector('.cardArt') };
+      countsEl.append(el);
     }
+
+    pileZone('deck', 'noop');
+    const handCount = h('b', {});
+    counts.hand = handCount;
+    countsEl.append(h('button', {
+      type: 'button', class: 'countBtn', dataset: { action: 'noop', side },
+    }, h('small', {}, 'hand'), handCount));
+    pileZone('discard', 'openDiscard');
     const pips = {};
     const pipRow = h('div', { class: 'pipRows' });
     if (side === 'player') {
@@ -179,10 +206,16 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       }
     }
     const rivalBias = side === 'rival' ? h('div', { class: 'hudBias' }) : null;
+    /* The rival's hand, as a hand: eight backs in an arc plus an overflow
+       count. Decoration only — aria-hidden, because the `hand` count button
+       two elements away is the accessible carrier and this must never become
+       the only place the number is stated. */
+    const fan = side === 'rival' ? h('div', { class: 'handFan', 'aria-hidden': 'true' }) : null;
+    const fanMore = side === 'rival' ? h('b', { class: 'fanMore' }) : null;
     const el = h('div', { class: `hud hud-${side}`, 'aria-label': side === 'player' ? 'Your status' : 'Rival status' },
-      coreEl, side === 'player' ? pipRow : rivalBias, countsEl,
+      coreEl, side === 'player' ? pipRow : rivalBias, fan, countsEl,
     );
-    return { el, coreEl, coreNum, coreBar, critical, counts, countsEl, pips, bias: rivalBias };
+    return { el, coreEl, coreNum, coreBar, critical, counts, countsEl, pips, piles, fan, fanMore, bias: rivalBias };
   }
 
   function paintHud(hud, p, side) {
@@ -194,12 +227,24 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     setAttr(hud.coreEl, 'aria-label', `${side === 'player' ? 'Your' : 'Rival'} Core ${p.core} of ${STARTING_CORE}${p.core <= 5 ? ', critical' : ''}`);
     setText(hud.counts.deck, p.deck.length);
     // 4.5: an empty deck is a clock, not fine print.
-    setClass(hud.counts.deck.parentElement, 'pressure', p.deck.length <= 6);
-    setAttr(hud.counts.deck.parentElement, 'title', p.deck.length <= 6
+    setClass(hud.piles.deck.el, 'pressure', p.deck.length <= 6);
+    setAttr(hud.piles.deck.el, 'title', p.deck.length <= 6
       ? `${p.deck.length} cards left — each failed draw deals escalating unpreventable Core damage.`
       : `${p.deck.length} cards left in deck`);
+    paintPile(hud.piles.deck, p.deck.length);
+    setAttr(hud.piles.deck.el, 'aria-label', `${side === 'player' ? 'Your' : 'Rival'} deck, ${p.deck.length} card${p.deck.length === 1 ? '' : 's'} remaining.`);
+
     setText(hud.counts.hand, p.hand.length);
+
     setText(hud.counts.discard, p.discard.length);
+    paintPile(hud.piles.discard, p.discard.length);
+    const top = p.discard[p.discard.length - 1] || null;
+    paintPileFace(hud.piles.discard, top);
+    setAttr(hud.piles.discard.el, 'aria-label', top
+      ? `${side === 'player' ? 'Your' : 'Rival'} discard, ${p.discard.length} card${p.discard.length === 1 ? '' : 's'}. ${top.name} on top. Activate to read the pile.`
+      : `${side === 'player' ? 'Your' : 'Rival'} discard, empty.`);
+
+    if (hud.fan) paintFan(hud, p.hand.length);
     if (side === 'player') {
       const cap = engine.resourceCurve(p.turnNumber || 1);
       const ghost = ghostCost();
@@ -217,6 +262,58 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     }
   }
 
+  /* Four shingles is the whole ladder, and the thresholds are the deck's own
+     shape rather than a linear scale: a 30-card deck spends most of the match
+     between 10 and 25, so a linear map would sit on the same depth for eight
+     rounds and then drop three steps in two. These break where the *danger*
+     breaks — the last band is the same 6 the pressure treatment uses. */
+  function pileDepth(n) {
+    if (n <= 0) return 0;
+    if (n <= 6) return 1;
+    if (n <= 12) return 2;
+    if (n <= 20) return 3;
+    return 4;
+  }
+
+  function paintPile(pile, count) {
+    setAttr(pile.stack, 'data-depth', String(pileDepth(count)));
+    setAttr(pile.el, 'data-empty', count === 0 ? 'true' : null);
+  }
+
+  /* The discard's face is addressed out of the same atlas the card tile uses,
+     through the same custom properties, so the crop maths in 07-card.css is
+     the single definition of where a card's art lives. */
+  function paintPileFace(pile, card) {
+    if (!pile.art) return;
+    if (pile._faceId === (card ? card.id : null)) return;
+    pile._faceId = card ? card.id : null;
+    if (!card) { setAttr(pile.el, 'data-division', null); return; }
+    const d = divisionById.get(card.divisionId);
+    setAttr(pile.el, 'data-division', String(card.divisionId));
+    pile.art.style.setProperty('--art-x', card.art.col);
+    pile.art.style.setProperty('--art-y', card.art.row);
+    setAttr(pile.art, 'data-glyph', d.icon);
+  }
+
+  /* The fan is capped at eight backs. Past that the arc stops reading as a
+     hand and starts reading as a smear, and the exact count is one element
+     away in the `hand` button regardless. */
+  const FAN_MAX = 8;
+  function paintFan(hud, count) {
+    const shown = Math.min(count, FAN_MAX);
+    const backs = hud.fan.querySelectorAll('.cardBack').length;
+    if (backs !== shown) {
+      clear(hud.fan);
+      for (let i = 0; i < shown; i++) hud.fan.append(h('span', { class: 'cardBack tiny' }));
+      if (count > FAN_MAX) hud.fan.append(hud.fanMore);
+      else hud.fanMore.remove();
+    }
+    if (count > FAN_MAX) {
+      if (!hud.fanMore.parentNode) hud.fan.append(hud.fanMore);
+      setText(hud.fanMore, `+${count - FAN_MAX}`);
+    } else hud.fanMore.remove();
+  }
+
   function ghostCost() {
     if (handIndex === null || !match || match.phase !== 'main') return null;
     const card = match.players.player.hand[handIndex];
@@ -230,11 +327,22 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   function createLaneSide(side, index) {
     const supports = h('div', { class: 'laneSupports' });
     const units = h('div', { class: 'laneUnits' });
+    /* The empty deployment slots. A TCG board is legible before anything is on
+       it because the slots are drawn: you can see how many units fit, where
+       they will sit, and that the lane is empty rather than merely quiet.
+       These are a layer BEHIND the units row, not placeholders inside it, so
+       the reconciliation in syncChildren never has to know they exist — it
+       keys on uid and would otherwise have to skip them on every pass.
+       They share the units row's box, gap and child width, so a deployed unit
+       lands exactly on top of the slot it filled. */
+    const slots = h('div', { class: 'laneSlots', 'aria-hidden': 'true' });
+    for (let i = 0; i < (engine.MAX_UNITS_PER_LANE ?? 3); i++) slots.append(h('span', { class: 'laneSlot' }));
+    units.append(slots);
     const el = h('div', {
       class: `laneSide laneSide-${side}`, dataset: { lane: index, side },
       role: 'group', 'aria-label': `${LANES[index]} — ${side === 'player' ? 'your side' : 'rival side'}`,
     }, side === 'rival' ? [supports, units] : [units, supports]);
-    return { el, supports, units };
+    return { el, supports, units, slots };
   }
 
   function createSeamCell(name, index) {
@@ -299,6 +407,11 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       type: 'button', class: 'supportChip', tabindex: '-1',
       dataset: hidden ? { action: 'noop' } : { action: 'inspect', card: s.card.id },
     },
+      /* VD-25: a face-down rival trap is a CARD BACK. It used to be a 45deg
+         hatch standing in for one; now it is the same back the deck and the
+         rival's hand wear, so "there is a card there and you cannot see it"
+         is one image across the whole board instead of three treatments. */
+      hidden ? h('span', { class: 'cardBack tiny setBack', 'aria-hidden': 'true' }) : null,
       h('span', { class: 'supportFamily', 'aria-hidden': 'true' }, hidden ? '⌖ SET' : `${FAMILY_MARK[s.card.family] || '✦'} ${s.card.family}`),
       h('b', { class: 'supportName', 'aria-hidden': 'true' }, hidden ? 'Face down' : s.card.name),
       h('span', { class: 'supportMeta', 'aria-hidden': 'true' }),

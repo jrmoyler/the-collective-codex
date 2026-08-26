@@ -76,10 +76,12 @@ styles.css  ← 00-fonts.css       self-hosted @font-face + metric-matched fallb
               05-controls.css    buttons, fields, selects, chips, kbd
               06-notify.css      toasts, dialogs, popovers, live regions
               07-card.css        .codexCard and its densities (compact / hand)
+              08-cardback.css    .cardBack — the procedural seal, deck piles, rival fan
 
 match.css   ← 20-match-board.css   board, lanes, seam, core meters
               21-match-units.css   units, supports, inspector
               22-match-hand.css    hand strip, mulligan, end-turn control
+              23-arena.css         the table: light, slots, front line, vertical budget
 
 ui.css      ← 30-codex.css       codex screen: rail, toolbar, windowed rows, detail drawer
               31-deck.css        deck screen: pool, doctrine rail, analysis

@@ -26,7 +26,7 @@ rules a future contributor has to keep.
 
 ## 1. Source layout and the build
 
-The CSS is authored as seventeen small files under `src/css/` and concatenated by
+The CSS is authored as nineteen small files under `src/css/` and concatenated by
 `scripts/build.mjs` into the three stylesheets `index.html` already requests. `index.html` is
 not owned by this layer, so the number and the names of the stylesheets are fixed; the split
 below is the design decision.
@@ -34,7 +34,9 @@ below is the design decision.
 ```
 styles.css   foundation   00-fonts  01-tokens  02-divisions  03-reset
                           04-shell  05-controls  06-notify  07-card
+                          08-cardback
 match.css    the board    20-match-board  21-match-units  22-match-hand
+                          23-arena
 ui.css       screens      30-codex  31-deck  32-static
              + the tail   33-motion  34-responsive  35-a11y
 ```
@@ -55,9 +57,14 @@ Four rules for the cascade:
   `String.replace` calls, and it is safe here because no string or `url()` in this codebase
   contains a comment opener and CSS block comments cannot nest.
 
-Shipped size: **16.3 KB gzipped for all three stylesheets** (7.1 + 4.3 + 4.8), 70.9 KB raw, plus
-53.7 KB of fonts. The sources are 1,861 lines across 17 files, none longer than 285. The file
+Shipped size: **20.0 KB gzipped for all three stylesheets** (8.6 + 6.3 + 4.8), 89.8 KB raw, plus
+53.7 KB of fonts. The sources are 2,737 lines across 19 files, none longer than 460. The file
 this replaced was one line of 12,838 characters.
+
+The +3.7 KB gzipped over the previous 16.3 buys the card back (§5.5) and the arena (§6.1) — a
+second hero object and the whole match atmosphere — with **no new binary asset, no extra network
+request and no new atlas raster**. Both are drawn in CSS. The card back's seal is a 1.3 KB inline
+SVG that gzips against the stylesheet it lives in; everything else is gradients.
 
 There are **no** defensive overrides left. The block `ui.css` used to carry — two
 `backdrop-filter: none !important`, a `content: none !important` for a decorative radial blob, a
@@ -425,6 +432,62 @@ Never opacity alone, never colour alone.
 next frame, not 200ms later — and an all-property transition across 1,134 elements was one of the
 measured problems in the brief.
 
+### 5.5 The card back
+
+Every trading card game is two pictures: the face you own and the back you are shown. This
+product had only the first. A deck was a number in a button, the rival's hand was a number in a
+button, and a set trap was a chip wearing a 45° hatch — so three of the four places a card can
+be were rendered as typography.
+
+`src/css/08-cardback.css` draws the fourth. It is **procedural**: five gradient layers and one
+inline SVG seal, no atlas row, no second request, no new binary in the repository, and sharp at
+every size it is used at because nothing in it is a raster.
+
+```
+┌───────────────────────────────┐  plate    170° wash, 1px --edge-gold
+│ ┌╴  ╶───────────────────╴  ╶┐ │  bezel    inset rule + four corner brackets
+│ │      ·  ·  ·  ·  ·  ·     │ │  rays     21, one per division, 17.142857° apart
+│ │    ((( ◈  SEAL  ◈ )))     │ │  rosette  guilloche rings
+│ │      ·  ·  ·  ·  ·  ·     │ │  sigil    octagram inside a triple ring
+│ └╴  ╶───────────────────╴  ╶┘ │
+└───────────────────────────────┘
+```
+
+| Token | Value | Role |
+| --- | --- | --- |
+| `--back-plate` | `#070E20` | the back's own ground, one step under `--surface-2` |
+| `--back-plate-2` | `#0C1730` | top of the plate's vertical wash |
+| `--back-glow` | `rgba(227,183,83,.085)` | the core behind the seal |
+| `--back-ray` | `rgba(227,183,83,.055)` | the 21 rays |
+| `--back-ring` | `rgba(227,183,83,.050)` | the guilloche |
+| `--back-weave` | `rgba(242,245,250,.022)` | the cross-hatch tooth |
+| `--back-ray-step` | `17.142857deg` | 360/21 |
+
+Three rules govern it:
+
+* **VD-30 — the back is the same eight-arm bezel the face uses.** A card, a card back and the
+  table they are played on repeat one construction, which is what makes them read as an object
+  family rather than three unrelated screens.
+* **VD-31 — the back carries no information.** Not rarity, not division, not cost. A back that
+  leaked any of those would be a card-game bug, not a flourish: the player would be reading the
+  rival's hand off the pattern. It is one image on all 1,134 cards and the only thing that ever
+  varies is its size.
+* **Small sizes drop detail rather than shrinking it.** Below the `full` variant, `.cardBack.tiny`
+  keeps the plate, the glow and the rays and loses the sigil and the bezel, so a 24×33 fan card
+  still reads as *the same back* instead of resolving into grey mush.
+
+**Why 21 rays.** The canon has 21 divisions. 360/21 is deliberately not 8, 12 or 16: an obvious
+rotational symmetry reads as a CSS gradient, an odd one reads as an engraving. It is also the
+only place in the product where the whole canon is present at once as a shape rather than a list.
+
+The two hexes inside the data URI (`%23E3B753` = `--gold`, `%23070E20` = `--back-plate`) are the
+**only hard-coded colours in the design layer**, because a `data:` URI cannot read a custom
+property. Change either token and change it there too.
+
+Under `forced-colors` every layer here is a background image and is therefore removed by the
+platform. What must survive is the reading — *this is a card, face down* — so the fallback is a
+dashed system border and nothing else.
+
 ---
 
 ## 6. The board
@@ -449,8 +512,101 @@ measured problems in the brief.
 * **Status is text + icon**, never opacity: `JUST DEPLOYED ⏾`, `EXHAUSTED ⏾`, `INFECTED ☣`,
   `WEAPON +2 ⚔`, `GUARD ⛨`, `FLYING ⌃`. Exhausted also takes a dashed frame, so it survives
   greyscale.
-* **A face-down rival trap is a card back**, not a greyed card: gold hairline, gold hatch, and it
-  stays present in the accessibility tree.
+* **A face-down rival trap is a card back** — since `23-arena`, literally the one from
+  §5.5 rather than a hatch standing in for one. Its text stays present in the accessibility tree.
+
+### 6.1 The arena
+
+`20-match-board` draws a *board*: a bed, three columns, a seam, two tints. That is a correct
+diagram of the game, and it reads as a spreadsheet, because a diagram is what it is. A trading
+card game is played on a **table** — a lit surface with marked-out zones, a horizon where the two
+armies meet, and piles whose size you can see. `src/css/23-arena.css` adds the table.
+
+**VD-33 — what the arena layer may and may not do.** It may add depth, light and zone shape. It
+may not add colour meaning, it may not tint anything that already carries a state, and it may not
+put anything in front of a numeral. Every declaration in the file is a background, a shadow, an
+inset rule or a slot outline. Nothing in it animates, nothing loops, and nothing in it is the
+only carrier of anything.
+
+Layer order on the bed, bottom to top:
+
+```
+.mBoard background        table wash + centre spotlight + two side pools
+.mBoard::before   z -1    the engraved lattice (the table's grain)
+HUDs / lanes / seam       the game
+.mBoard::after    z  4    vignette + four corner rails
+```
+
+The two pseudo-elements sit on opposite sides of the content deliberately: grain belongs under
+the pieces, and a vignette that is not over them is not a vignette.
+
+What it adds, and why each is a *second* carrier of something already stated:
+
+| Element | What it draws | What already said it |
+| --- | --- | --- |
+| Table pools | warm at the seam, cool at the rival edge, warm at yours | `--tint-rival` / `--tint-player` |
+| Deployment slots | three marked cells per lane, corner ticks | `MAX_UNITS_PER_LANE`, the lane's `aria-label` |
+| Slot preview | solid `--ok` / dotted `--danger` on the cells a selected card would land in | the 2px lane edge and the reason sentence |
+| Deck pile | up to four shingles behind a card back; a dashed well when empty | the deck count and its `pressure` state |
+| Discard pile | the crest of the card that actually went there last, face up | the discard count and the discard dialog |
+| Rival hand | up to eight backs in an arc, plus an overflow count | the rival's `hand` count button |
+| Core reactor | a 4px bloom on the lit segments | the fill colour, the numeral, the `CRITICAL` word |
+| Seam | a bright rail with a vanishing point and a bloom into both territories | the gold border and the arrow |
+
+**Three structural changes came with it**, and all three are fixes rather than preferences:
+
+* **The units row is a three-column grid.** It was a wrapping flex row of fixed 122px tiles, so a
+  364px lane could show two units side by side and put the third on a second row — on a board
+  whose own rules cap a lane at exactly three. The lane's capacity and the lane's layout
+  disagreed, and drawing the slot ghosts made that visible immediately. Three equal columns
+  cannot disagree, and the tile becomes fluid, so a lane fills the width it is given at every
+  viewport instead of at one.
+* **Both armies stand at the front line.** `20-match-board` packed each side's contents *away*
+  from the seam, so at an empty board the two forces sat at opposite ends of the table with the
+  horizon between them and nothing near it — backwards for the one relationship the seam exists
+  to print. Both sides now pack toward the seam; supports fall to the back of each territory,
+  which is where a support belongs, since it never fights. DOM order per side is untouched.
+* **The lane background stack is declared once per side.** `20-match-board` set the four
+  scroll-shadow layers on `.laneSide-rival, .laneSide-player` and then, eleven lines later, set
+  `background:` — the *shorthand* — on each side for the tint. The shorthand resets
+  `background-image`, `-size`, `-position`, `-repeat` and `-attachment`, so the scroll shadows it
+  had carefully measured were discarded before they ever painted: an overflowing lane bay showed a
+  clipped unit and no cue at all that anything was below it. One complete stack per side makes
+  that impossible to repeat.
+
+### 6.2 The vertical budget
+
+At 1366×768 — the most common laptop there is — the frame around the board was taking 410 of the
+board's 496 pixels: 249 in two status strips, 74 in the seam, and a flat 252px hand dock that
+never changed size at any height. The lane bays got 86px each and clipped the units inside them
+top and bottom, so *the power number of the thing attacking you* was cut in half.
+
+The board is the game and the hand is the tool it is played with, so the frame gives way first.
+Measured at 1366×768: rival HUD **141 → 86**, player HUD **108 → 86**, dock **214 → 192**, lane
+row **86 → 116**. Nothing is removed to pay for it — the Cores, the twenty segments, the resource
+pips, the counts and the difficulty line are all still on screen at 768; they are on one row
+instead of two, at sizes the rest of the product already uses.
+
+| Viewport height | Board crest | Slot | Hand crest | Hand card |
+| --- | --- | --- | --- | --- |
+| ≥ 1200 | 96 | 176 | 96 | 254 |
+| 1001–1199 | 56 | 132 | 96 | 254 |
+| 821–1000 | 44 | 124 | 56 | 212 |
+| ≤ 820 | 32 | 96 | 44 | 184 |
+
+Every crest size in that table is one the atlas is **already rasterised at somewhere else in the
+product** (A-31: 96 in the deck pool and the hand, 56/44/32 on the board), so a lane wide enough
+for a 96px crest costs the compositor nothing new — it reuses a raster something else is holding.
+
+At ≤ 820 the unit name clamps to one line. That is the field that survives being shortened: the
+crest above it and the tile's accessible name both still carry the identity, while a state chip
+is the *only* place `EXHAUSTED`, `GUARD` or `INFECTED` is written and can never be the thing that
+is dropped.
+
+Below 900px **wide**, `34-responsive` turns the board into a single scrolling column of short lane
+bays; the marked slots and the rival's fan leave there, and the empty-lane sentence goes back to
+being a box in the flow. Nothing informational is lost — the slots were the second copy of a
+lane's capacity and the lane's `aria-label` is the first.
 
 ---
 

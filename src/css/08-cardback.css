@@ -1,0 +1,254 @@
+/* ============================================================================
+   08-cardback — THE CARD BACK. The second hero object.
+   ----------------------------------------------------------------------------
+   Every trading card game is two pictures: the face you own and the back you
+   are shown. This product had only the first. A deck was a number in a button,
+   the rival's hand was a number in a button, and a set trap was a chip wearing
+   a 45deg hatch — so three of the four things a player looks at during someone
+   else's turn were typography. This file draws the fourth.
+
+   THE SEAL, from the outside in:
+
+       ┌───────────────────────────────┐   plate   — 170deg wash, gold hairline
+       │ ┌╴  ╶───────────────────╴  ╶┐ │   bezel   — inset rule + 4 brackets
+       │ │      ·  ·  ·  ·  ·  ·     │ │   rays    — 21, one per division
+       │ │    ((( ◈ THE  SEAL ◈ )))   │ │   rosette — guilloche rings
+       │ │      ·  ·  ·  ·  ·  ·     │ │   sigil   — octagram in a triple ring
+       │ │  ╶─────  CODEX  ─────╴    │ │   plinth  — the wordmark rule
+       │ └╴  ╶───────────────────╴  ╶┘ │
+       └───────────────────────────────┘
+
+   IT IS DRAWN, NOT LOADED. Five gradient layers and one inline SVG. No atlas
+   row, no second request, no new binary in the repository, and it stays sharp
+   at every one of the five sizes it is used at (14px pile shingle to 244px
+   mulligan card) because nothing in it is a raster.
+
+   WHY 21 RAYS. The canon has 21 divisions, so the rosette has 21 rays at
+   360/21 = 17.142857deg. The number is deliberately not 8, 12 or 16: an
+   obvious rotational symmetry reads as a CSS gradient, an odd one reads as an
+   engraving. It is also the only place in the product where the whole canon is
+   present at once as a shape rather than as a list.
+
+   THE BACK CARRIES NO INFORMATION (VD-31). Not rarity, not division, not cost.
+   A back that leaked any of those would be a card game bug, not a design
+   flourish: the player would be reading the rival's hand off the pattern. It
+   is one image, identical on all 1,134 cards, and the only thing that ever
+   varies is its SIZE.
+   ========================================================================== */
+
+/* The sigil. viewBox 0 0 120 120, painted by background-size into whatever
+   square the host gives it.
+
+   The two hexes inside the data URI are the only hard-coded colours in the
+   design layer, because a data: URI cannot read a custom property. They are
+   %23E3B753 = --gold and %23070E20 = --back-plate; change either token and
+   change it here too. Nothing else in the file repeats a literal colour. */
+.cardBack {
+  --back-seal: 66%;
+  --back-ray-origin: 50% 46%;
+
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background-color: var(--back-plate);
+  background-image:
+    /* 1 — the seal itself */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23E3B753'%3E%3Ccircle cx='60' cy='60' r='47' stroke-width='1.4' opacity='.62'/%3E%3Ccircle cx='60' cy='60' r='42' stroke-width='.7' opacity='.34'/%3E%3Ccircle cx='60' cy='60' r='22.5' stroke-width='.7' opacity='.44'/%3E%3C/g%3E%3Cpath d='M60 20 L67.4 52.6 L100 60 L67.4 67.4 L60 100 L52.6 67.4 L20 60 L52.6 52.6 Z' fill='%23E3B753' opacity='.92'/%3E%3Cpath d='M60 37 L63.4 56.6 L83 60 L63.4 63.4 L60 83 L56.6 63.4 L37 60 L56.6 56.6 Z' fill='%23070E20'/%3E%3Ccircle cx='60' cy='60' r='4.4' fill='%23E3B753'/%3E%3Cg fill='%23E3B753' opacity='.55'%3E%3Cpath d='M60 4.6l2.6 4.4-2.6 4.4-2.6-4.4z'/%3E%3Cpath d='M60 115.4l2.6-4.4-2.6-4.4-2.6 4.4z'/%3E%3Cpath d='M4.6 60l4.4 2.6 4.4-2.6-4.4-2.6z'/%3E%3Cpath d='M115.4 60l-4.4 2.6-4.4-2.6 4.4-2.6z'/%3E%3C/g%3E%3C/svg%3E"),
+    /* 2 — 21 rays, one per division */
+    repeating-conic-gradient(from 0deg at var(--back-ray-origin),
+      var(--back-ray) 0deg 3.4deg, transparent 3.4deg var(--back-ray-step)),
+    /* 3 — the guilloche: concentric rings at an irrational-looking pitch */
+    repeating-radial-gradient(circle at var(--back-ray-origin),
+      transparent 0 5.5%, var(--back-ring) 5.5% 6%, transparent 6% 11.5%),
+    /* 4 + 5 — the cross-hatch tooth that keeps the plate from reading flat */
+    repeating-linear-gradient(45deg, var(--back-weave) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(-45deg, var(--back-weave) 0 1px, transparent 1px 6px),
+    /* 6 — the warm core behind the seal */
+    radial-gradient(circle at var(--back-ray-origin), var(--back-glow), transparent 58%),
+    /* 7 — the plate */
+    linear-gradient(170deg, var(--back-plate-2) 0%, var(--back-plate) 62%, #04091A 100%);
+  background-position: var(--back-ray-origin), center, center, 0 0, 0 0, center, center;
+  background-size: var(--back-seal) auto, cover, cover, auto, auto, cover, cover;
+  background-repeat: no-repeat;
+  border: 1px solid var(--edge-gold);
+  box-shadow: var(--e-raise);
+}
+
+/* The bezel. Same construction as the card face's (07-card.css) so a back and
+   a face read as two sides of ONE object: a 1px inset rule plus four corner
+   brackets, drawn as eight 1px gradient arms in a single pseudo-element. */
+.cardBack::before {
+  content: ''; position: absolute; inset: 4px; pointer-events: none; z-index: 1;
+  border: 1px solid color-mix(in oklab, var(--edge-gold) 55%, transparent);
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold));
+  background-size:
+    var(--back-bracket, 12px) 1px, 1px var(--back-bracket, 12px),
+    var(--back-bracket, 12px) 1px, 1px var(--back-bracket, 12px),
+    var(--back-bracket, 12px) 1px, 1px var(--back-bracket, 12px),
+    var(--back-bracket, 12px) 1px, 1px var(--back-bracket, 12px);
+  background-position:
+    left top, left top, right top, right top,
+    left bottom, left bottom, right bottom, right bottom;
+}
+
+/* ---- Small sizes drop detail rather than shrinking it -------------------
+   A 14px pile shingle rendered with the full seal is grey mush. Below the
+   `full` variant the back keeps the plate, the glow and the rays and loses the
+   sigil and the bezel, so the pattern still reads as *the same back* at a
+   glance without resolving into noise. */
+.cardBack.tiny {
+  --back-seal: 0;
+  background-image:
+    repeating-conic-gradient(from 0deg at var(--back-ray-origin),
+      var(--back-ray) 0deg 4.6deg, transparent 4.6deg var(--back-ray-step)),
+    radial-gradient(circle at var(--back-ray-origin), var(--back-glow), transparent 62%),
+    linear-gradient(170deg, var(--back-plate-2), var(--back-plate));
+  background-position: center, center, center;
+  background-size: cover, cover, cover;
+}
+.cardBack.tiny::before { content: none; }
+
+/* ---- The foil sweep ----------------------------------------------------
+   MO-2: one pass, on intent, transform + opacity only. The face reserves this
+   for Legendary; the back gets it because a back is *always* the premium
+   object in a physical deck — it is the printed side, the one with the foil.
+   It never loops and it never fires without a hover or a focus. */
+.cardBack::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(104deg, transparent 38%, rgba(255, 255, 255, .10) 50%, transparent 62%);
+}
+@media (hover: hover) {
+  .backHost:hover .cardBack::after,
+  .cardBack.backHost:hover::after { animation: foilSweep calc(1100ms * var(--motion-scale) + 1ms) var(--ease-move) 1; }
+}
+.backHost:focus-visible .cardBack::after,
+.cardBack.backHost:focus-visible::after { animation: foilSweep calc(1100ms * var(--motion-scale) + 1ms) var(--ease-move) 1; }
+/* MO-6/7: the sweep is decoration on top of a static image, so reduced motion
+   removes it outright rather than compressing it into a 1ms flash. */
+html[data-motion="reduce"] .cardBack::after { animation: none; opacity: 0; }
+
+/* ---- The deck pile ------------------------------------------------------
+   A deck is a physical object with a THICKNESS, and the thickness is the one
+   number a player checks most often after the two Cores. The pile draws the
+   top card as a real back and stacks up to four shingles behind it; how many
+   are lit is driven from JS via --pile-depth (0-4), so a deck running out
+   visibly thins. That is the same information as the count beside it, in the
+   channel the eye reads without being asked (VD-32: never a new fact, always a
+   second carrier of one the numerals already state). */
+.pileZone {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-width: 62px; min-height: 40px; padding: var(--sp-2) var(--sp-3); cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text);
+}
+.pileZone:hover { background: var(--surface-3); border-color: var(--text-mute); }
+.pileZone small {
+  font: var(--t-200)/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.pileZone b { font: 700 var(--t-300)/1.3 var(--font-mono); }
+
+/* The stack. `--pile-depth` shingles are drawn as offset siblings behind the
+   face; each is 2px right and 2px down, which is exactly how a squared deck of
+   cards looks from three-quarters on. */
+.pileStack {
+  position: relative; flex: none;
+  width: var(--pile-w, 30px); height: var(--pile-h, 42px);
+}
+.pileStack .cardBack, .pileStack .pileFace {
+  position: absolute; inset: 0; border-radius: 3px;
+}
+.pileShingle {
+  position: absolute; inset: 0; border-radius: 3px;
+  border: 1px solid var(--edge-gold);
+  background: linear-gradient(170deg, var(--back-plate-2), var(--back-plate));
+}
+/* Addressed by data-i, never by nth-child: the well and the face are siblings
+   in the same stack, so a positional selector would count them too and the
+   whole ladder would be off by one the moment either was added or removed. */
+.pileShingle[data-i="1"] { transform: translate(2px, 2px); }
+.pileShingle[data-i="2"] { transform: translate(4px, 4px); }
+.pileShingle[data-i="3"] { transform: translate(6px, 6px); }
+.pileShingle[data-i="4"] { transform: translate(8px, 8px); }
+.pileStack[data-depth="0"] .pileShingle { display: none; }
+.pileStack[data-depth="1"] .pileShingle:not([data-i="1"]) { display: none; }
+.pileStack[data-depth="2"] .pileShingle[data-i="3"],
+.pileStack[data-depth="2"] .pileShingle[data-i="4"] { display: none; }
+.pileStack[data-depth="3"] .pileShingle[data-i="4"] { display: none; }
+/* An empty deck is not a thin deck — it is a hole. The face goes away and the
+   well behind it is what is left, which is the strongest possible reading of
+   "there is nothing left to draw" and it needs no colour to say it. */
+.pileZone[data-empty="true"] .pileStack .cardBack,
+.pileZone[data-empty="true"] .pileShingle { display: none; }
+.pileWell {
+  position: absolute; inset: 0; border-radius: 3px;
+  border: 1px dashed var(--line-strong); background: var(--sunken);
+}
+.pileZone:not([data-empty="true"]) .pileWell { display: none; }
+/* 4.5: a deck at six or fewer is a clock. The pile inherits the pressure
+   treatment the count button already had, so the two never disagree. */
+.pileZone.pressure { border-color: var(--danger); color: var(--danger); background: rgba(255, 107, 107, .10); }
+.pileZone.pressure small { color: var(--danger); }
+
+/* ---- The discard pile is FACE UP ---------------------------------------
+   The top of a discard pile is public information in every card game ever
+   printed, and this one was hiding it behind a numeral and a dialog. The pile
+   shows the crest of the card that actually went there last, addressed out of
+   the same atlas the tile uses, so "what did that just kill" is answerable
+   without opening anything.
+   The face is a plate holding a real .cardArt square, so the atlas window
+   maths in 07-card.css stays the single definition of where a card's art is;
+   the plate's geometry lives with the rest of the board furniture in
+   23-arena.css. Nothing about the crop is restated here. */
+
+/* ---- The rival's hand ---------------------------------------------------
+   A fan of backs, one per card the rival is actually holding, capped at eight
+   shown. It is aria-hidden: the count button beside it is the accessible
+   carrier and this is its second channel, never its only one. The fan is the
+   single most-requested piece of TCG furniture and the cheapest — it is eight
+   30x42 divs. */
+.handFan { display: flex; align-items: center; height: 44px; padding-left: 9px; }
+.handFan .cardBack {
+  flex: none; width: 30px; height: 42px; margin-left: -13px; border-radius: 3px;
+  transform-origin: 50% 120%;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, .55);
+}
+/* The arc. Nine authored rotations rather than a computed one, because a fan
+   is a fixed object with a fixed shape and nth-child is exactly as readable as
+   the arithmetic would have been. */
+.handFan .cardBack:nth-of-type(1) { transform: rotate(-11deg) translateY(3px); }
+.handFan .cardBack:nth-of-type(2) { transform: rotate(-8deg)  translateY(1.6px); }
+.handFan .cardBack:nth-of-type(3) { transform: rotate(-5deg)  translateY(.7px); }
+.handFan .cardBack:nth-of-type(4) { transform: rotate(-2deg); }
+.handFan .cardBack:nth-of-type(5) { transform: rotate(1deg); }
+.handFan .cardBack:nth-of-type(6) { transform: rotate(4deg)   translateY(.7px); }
+.handFan .cardBack:nth-of-type(7) { transform: rotate(7deg)   translateY(1.6px); }
+.handFan .cardBack:nth-of-type(8) { transform: rotate(10deg)  translateY(3px); }
+.handFan .fanMore {
+  align-self: flex-end; margin-left: var(--sp-3);
+  font: 700 var(--t-200)/1 var(--font-mono); color: var(--gold);
+}
+.handFan:empty { display: none; }
+
+/* ---- Forced colours -----------------------------------------------------
+   Every layer here is a background image, and forced-colors removes all of
+   them. What must survive is the READING: this is a card, face down. A dashed
+   system border says exactly that and needs no gradient. */
+@media (forced-colors: active) {
+  /* `.cardBack.tiny` has to be named explicitly: it carries its own
+     background-image at a higher specificity than `.cardBack`, so resetting
+     only the base class leaves the fan and the set-trap back painting their
+     gradient plate straight through forced colours as a dark blob. And no
+     forced-color-adjust here — the platform SHOULD repaint this; the reading
+     that has to survive is "a card, face down", which the dashed border is. */
+  .cardBack, .cardBack.tiny, .pileShingle, .pileFace {
+    background: Canvas; background-image: none; border: 1px dashed ButtonText;
+  }
+  .cardBack::before, .cardBack::after { content: none; }
+  .pileZone { border: 1px solid ButtonText; background: Canvas; color: CanvasText; }
+}
