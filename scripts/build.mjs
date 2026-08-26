@@ -33,9 +33,11 @@ const cssBundles = {
   'styles.css': [
     '00-fonts.css', '01-tokens.css', '02-divisions.css', '03-reset.css',
     '04-shell.css', '05-controls.css', '06-notify.css', '07-card.css',
+    '08-cardback.css',
   ],
   'match.css': [
     '20-match-board.css', '21-match-units.css', '22-match-hand.css',
+    '23-arena.css',
   ],
   'ui.css': [
     '30-codex.css', '31-deck.css', '32-static.css',

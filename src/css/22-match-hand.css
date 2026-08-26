@@ -11,15 +11,15 @@
 .handLeft { flex: 1; min-width: 0; }
 .handStrip {
   display: flex; align-items: flex-start; gap: var(--sp-3);
-  height: 252px; padding-bottom: var(--sp-2);
+  height: 262px; padding-bottom: var(--sp-2);
   overflow-x: auto; overflow-y: hidden;
 }
 .handStrip:empty { height: 0; padding: 0; }
 
 .codexCard.handCard {
   --art-size: 96px;
-  flex: none; width: 148px; height: 244px;
-  contain-intrinsic-size: auto 244px;
+  flex: none; width: 148px; height: 254px;
+  contain-intrinsic-size: auto 254px;
 }
 .handCard .cardName { font-size: var(--t-300); min-height: 2.5em; }
 .handCard .cardFoot { flex-wrap: wrap; row-gap: 3px; }

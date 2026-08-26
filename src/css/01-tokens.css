@@ -101,4 +101,32 @@
   /* Board bed tints (VD-23): the entire "whose side is this" system. */
   --tint-rival:  rgba(167, 192, 222, .030);
   --tint-player: rgba(227, 183, 83, .034);
+
+  /* ---- The card back (VD-30) --------------------------------------------
+     A card back is the one surface in the product that is allowed to be
+     ornamental, because it carries no information at all: it is what a player
+     sees of the rival's hand, of both decks, and of a trap that has been set
+     but not sprung. It is drawn procedurally — five gradient layers and one
+     3 KB inline SVG seal — so it costs no request, no atlas row and no byte of
+     the transfer budget beyond the stylesheet it lives in.
+
+     The plate is a step darker than --surface-2 so a stack of backs reads as
+     *unlit* against the board bed; the gold is the same --gold the frame uses,
+     never a second authority colour. */
+  --back-plate:   #070E20;   /* 1.03:1 on bg — the back's own ground */
+  --back-plate-2: #0C1730;   /* the top of the plate's vertical wash */
+  --back-glow:    rgba(227, 183, 83, .085);  /* the core behind the seal */
+  --back-ray:     rgba(227, 183, 83, .055);  /* 21 rays, one per division */
+  --back-ring:    rgba(227, 183, 83, .050);  /* the guilloche rings */
+  --back-weave:   rgba(242, 245, 250, .022); /* the cross-hatch tooth */
+
+  /* One ray per division. 360/21 is not a round number and that is the point:
+     the rosette does not tile into an obvious 8 or 12, so it reads as an
+     engraved seal rather than as a CSS gradient. */
+  --back-ray-step: 17.142857deg;
+
+  /* Card-back geometry. --slot-h is the height of an empty board slot and of
+     the ghost a unit leaves behind it; it tracks --art-size at each breakpoint
+     so the slot never disagrees with the tile that fills it. */
+  --slot-h: 132px;
 }

@@ -1,0 +1,460 @@
+/* ============================================================================
+   23-arena — THE ARENA. The last layer of the match cascade, and the only one
+   whose job is atmosphere rather than information.
+   ----------------------------------------------------------------------------
+   20-match-board draws a board: a bed, three columns, a seam, two tints. That
+   is a correct diagram of the game and it reads as a spreadsheet, because a
+   diagram is what it is. A trading card game is played on a TABLE — a lit
+   surface with marked-out zones, a horizon where the two armies meet, and
+   piles you can see the size of. This file adds the table without touching a
+   single number.
+
+   THE RULE THIS FILE OBEYS (VD-33): the arena may add DEPTH, LIGHT and ZONE
+   SHAPE. It may not add colour meaning, it may not tint anything that already
+   carries a state, and it may not put anything in front of a numeral. Every
+   declaration below is a background, a shadow, an inset rule or a slot
+   outline. Nothing here animates, nothing here loops, and nothing here is the
+   only carrier of anything.
+
+   Layer order on the bed, bottom to top:
+
+       .mBoard background      table wash + spotlight + side pools
+       .mBoard::before  z -1   the engraved lattice (the table's grain)
+       HUDs / lanes / seam     the game
+       .mBoard::after   z  4   vignette + the four corner rails
+
+   The two pseudo-elements sit on opposite sides of the content deliberately:
+   grain belongs under the pieces, and a vignette that is not over them is not
+   a vignette.
+   ========================================================================== */
+
+/* ---- The table ----------------------------------------------------------
+   One warm pool at the seam, one cool pool at the rival's edge, one warm pool
+   at the player's. That is the same ownership statement 20-match-board makes
+   with --tint-rival/--tint-player, said again in light instead of in wash —
+   the second carrier, never a new one. */
+.mBoard {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(118% 62% at 50% 50%, rgba(227, 183, 83, .050), transparent 64%),
+    radial-gradient(88% 44% at 50% 0%,   rgba(167, 192, 222, .045), transparent 72%),
+    radial-gradient(88% 44% at 50% 100%, rgba(227, 183, 83, .050), transparent 72%),
+    linear-gradient(180deg, #0A1224 0%, #070D1E 50%, #0A1224 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(3, 6, 14, .9),
+    inset 0 0 110px rgba(0, 0, 0, .72),
+    var(--e-scene);
+}
+
+/* The grain: two 60deg hatches crossing into a diamond lattice at ~0.012
+   alpha. It is below the threshold at which anyone can name it and above the
+   threshold at which the bed reads as painted rather than as flat fill. */
+.mBoard::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    repeating-linear-gradient(60deg,  rgba(242, 245, 250, .013) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(-60deg, rgba(242, 245, 250, .013) 0 1px, transparent 1px 24px);
+}
+
+/* The vignette and the four corner rails. The rails are the same eight-arm
+   gradient construction the card bezel and the card back use (07-card.css,
+   08-cardback.css) — a third repetition on purpose, because it is what makes
+   a card, a card back and the table they are played on read as one object
+   family rather than three unrelated screens. */
+.mBoard::after {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(128% 96% at 50% 50%, transparent 52%, rgba(2, 5, 12, .58) 100%),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold)),
+    linear-gradient(var(--gold), var(--gold)), linear-gradient(var(--gold), var(--gold));
+  background-size:
+    100% 100%,
+    34px 2px, 2px 34px, 34px 2px, 2px 34px,
+    34px 2px, 2px 34px, 34px 2px, 2px 34px;
+  background-position:
+    0 0,
+    left 5px top 5px, left 5px top 5px, right 5px top 5px, right 5px top 5px,
+    left 5px bottom 5px, left 5px bottom 5px, right 5px bottom 5px, right 5px bottom 5px;
+}
+
+/* ---- The HUD plinths ----------------------------------------------------
+   Each HUD becomes the near edge of the table rather than a strip of chrome:
+   a bevel highlight on the side facing the lanes, and a soft occlusion on the
+   side facing away. Two shadows, no new colour. */
+.hud {
+  position: relative;
+  background-image: linear-gradient(180deg, rgba(0, 0, 0, .22), transparent 46%);
+}
+.hud-rival  { box-shadow: inset 0 -1px 0 rgba(242, 245, 250, .045), 0 8px 20px -16px rgba(0, 0, 0, .9); }
+.hud-player { box-shadow: inset 0 1px 0 rgba(242, 245, 250, .045), 0 -8px 20px -16px rgba(0, 0, 0, .9); }
+
+/* ---- The Core reactor ---------------------------------------------------
+   Twenty segments, unchanged in number, geometry and semantics (VD-26). The
+   lit ones now emit: a 4px bloom in their own colour and a 1px inner
+   highlight, so a full Core reads as *powered* and a spent one as dark metal.
+   The glow is a box-shadow on an already-coloured fill, so it can never be
+   the thing that distinguishes lit from unlit — the fill still is. */
+.coreBar { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .75); }
+.coreSeg { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35); }
+.hud-player .coreSeg.lit { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .30), 0 0 5px rgba(74, 215, 196, .50); }
+.hud-rival  .coreSeg.lit { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .30), 0 0 5px rgba(227, 183, 83, .50); }
+.coreBar.critical .coreSeg.lit { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .30), 0 0 6px rgba(255, 107, 107, .60); }
+
+/* ---- Lane runways -------------------------------------------------------
+   A lane is a strip of floor running at the seam, so it is lit from the seam:
+   the pool sits at the lane's NEAR edge (bottom for the rival, top for you)
+   and falls off away from it. 20-match-board already states the same ownership
+   with a flat tint; this says it again in light, sourced from the same
+   --tint-* tokens so the two cannot disagree.
+
+   The whole stack is restated here, per side, rather than added to — and that
+   is a fix, not a preference. 20-match-board declares the four scroll-shadow
+   layers on `.laneSide-rival, .laneSide-player` and then, eleven lines later,
+   sets `background:` (the SHORTHAND) on each side for the tint. The shorthand
+   resets background-image, -size, -position, -repeat and -attachment to their
+   initial values, so the scroll shadows it carefully measured were being
+   thrown away before they ever painted: a lane bay that overflowed at
+   1280x800 showed a clipped unit and no cue at all that anything was below.
+   One complete stack per side is what makes that impossible to do again. */
+.laneSide { position: relative; }
+.laneSide-rival, .laneSide-player {
+  background-repeat: no-repeat;
+  /* local, local, scroll, scroll  = the four scroll shadows, unchanged;
+     local                          = the lane's floor pool, which must scroll
+                                      with the content it lights. */
+  background-attachment: local, local, scroll, scroll, local;
+  background-size: 100% 14px, 100% 14px, 100% 8px, 100% 8px, 100% 100%;
+  background-position: 0 0, 0 100%, 0 0, 0 100%, 0 0;
+}
+.laneSide-rival {
+  background-color: rgba(167, 192, 222, .022);
+  background-image:
+    linear-gradient(180deg, var(--pit), transparent),
+    linear-gradient(0deg,   var(--pit), transparent),
+    linear-gradient(180deg, rgba(0, 0, 0, .55), transparent),
+    linear-gradient(0deg,   rgba(0, 0, 0, .55), transparent),
+    radial-gradient(82% 46% at 50% 100%, rgba(167, 192, 222, .060), transparent 72%);
+}
+.laneSide-player {
+  background-color: rgba(227, 183, 83, .026);
+  background-image:
+    linear-gradient(180deg, var(--pit), transparent),
+    linear-gradient(0deg,   var(--pit), transparent),
+    linear-gradient(180deg, rgba(0, 0, 0, .55), transparent),
+    linear-gradient(0deg,   rgba(0, 0, 0, .55), transparent),
+    radial-gradient(82% 46% at 50% 0%, rgba(227, 183, 83, .064), transparent 72%);
+}
+
+/* ---- Deployment slots ---------------------------------------------------
+   The single largest readability change on this screen. Three marked slots per
+   lane, drawn whether or not anything is in them, so the board answers "how
+   many fit here / where will this land / is this lane actually empty" from
+   shape alone.
+
+   THE UNITS ROW BECOMES A THREE-COLUMN GRID. It was a wrapping flex row of
+   fixed 122px tiles, which meant a lane that measured 364px could only show
+   two units side by side and put the third on a second row — on a board whose
+   own rules cap a lane at exactly three. The lane's capacity and the lane's
+   layout disagreed, and the slot ghosts made that visible the moment they were
+   drawn. A grid of three equal columns cannot disagree: MAX_UNITS_PER_LANE is
+   3, the lane has 3 columns, a unit fills one, and the ghost behind it is the
+   same cell. It also makes the tile fluid, so a lane fills the width it is
+   given at every viewport instead of at exactly one.
+
+   The ghosts are a layer BEHIND the units row sharing its exact grid, so the
+   reconciliation in syncChildren never has to know they exist — it keys on uid
+   and would otherwise have to skip them on every pass. */
+.laneUnits {
+  position: relative; min-height: var(--slot-h);
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2); align-content: start;
+}
+.laneRowRival .laneUnits { align-content: end; }
+.laneUnits > .battleUnit { position: relative; z-index: 1; width: auto; min-width: 0; }
+.laneSlots {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2); align-content: start;
+}
+.laneRowRival .laneSlots { align-content: end; }
+.laneSlot {
+  --slot-tick: color-mix(in oklab, var(--line-strong) 62%, transparent);
+  min-width: 0; height: var(--slot-h);
+  border: 1px dashed color-mix(in oklab, var(--line-strong) 40%, transparent);
+  background-color: rgba(3, 6, 14, .30);
+  background-repeat: no-repeat;
+  /* Four corner ticks, same eight-arm construction as everything else that
+     wants to read as machined rather than drawn. */
+  background-image:
+    linear-gradient(var(--slot-tick), var(--slot-tick)), linear-gradient(var(--slot-tick), var(--slot-tick)),
+    linear-gradient(var(--slot-tick), var(--slot-tick)), linear-gradient(var(--slot-tick), var(--slot-tick)),
+    linear-gradient(var(--slot-tick), var(--slot-tick)), linear-gradient(var(--slot-tick), var(--slot-tick)),
+    linear-gradient(var(--slot-tick), var(--slot-tick)), linear-gradient(var(--slot-tick), var(--slot-tick));
+  background-size: 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px;
+  background-position:
+    left 3px top 3px, left 3px top 3px, right 3px top 3px, right 3px top 3px,
+    left 3px bottom 3px, left 3px bottom 3px, right 3px bottom 3px, right 3px bottom 3px;
+}
+
+/* ---- The unit is a card, not a row -------------------------------------
+   Now that a unit owns a whole grid cell it can be built like the thing it
+   represents: a centred crest with a name under it, at a crest size that is
+   worth looking at. The crest sizes are still a small discrete set (VD/A-31)
+   so the compositor holds a countable number of atlas rasterisations.
+
+   `.unitName { flex: none }` is a bug fix, not a preference. The unit is a
+   flex column inside a bay of fixed height, and the name was the only child
+   with a default flex-shrink of 1 — so when the bay ran short the NAME is what
+   collapsed, to literally zero pixels. A unit whose height is under pressure
+   should lose artwork (which it already does at two breakpoints), never its
+   own identity. */
+.laneRow .battleUnit { --art-size: 56px; align-items: stretch; }
+.battleUnitArt { flex: none; }
+.unitName { flex: none; -webkit-line-clamp: 2; }
+.unitPower { align-self: flex-start; }
+
+/* The drop preview. When a card is selected and this lane will take it, the
+   slots go solid in --ok; when it will not, they go dotted in --danger. This
+   is the same yes/no the 2px lane edge already states — restated at the exact
+   place the card would land, which is the question the player is actually
+   asking. Both edges remain, so neither is load-bearing alone. */
+.laneSide[data-legal="yes"] .laneSlot {
+  border-style: solid; border-color: color-mix(in oklab, var(--ok) 62%, transparent);
+  --slot-tick: var(--ok);
+  background-color: rgba(74, 215, 196, .045);
+}
+.laneSide[data-legal="no"] .laneSlot {
+  border-style: dotted; border-color: color-mix(in oklab, var(--danger) 55%, transparent);
+  --slot-tick: color-mix(in oklab, var(--danger) 70%, transparent);
+}
+
+/* ---- Both armies stand at the front line -------------------------------
+   20-match-board packs each side's contents AWAY from the seam: the rival's
+   lane is top-packed and yours is bottom-packed, so at an empty board the two
+   forces sit at opposite ends of the table with the horizon between them and
+   nothing near it. That is backwards for the one relationship the seam exists
+   to print. Both sides now pack TOWARD the seam, which puts units nose to nose
+   across it and pushes supports to the back of each territory — which is also
+   where a support belongs, since it never fights.
+
+   This is a layout inversion, not a new rule: the DOM order per side is
+   untouched (rival [supports, units], player [units, supports]), so unit and
+   support still cannot be confused for each other. */
+.laneRowRival .laneSide  { justify-content: flex-end; }
+.laneRowPlayer .laneSide { justify-content: flex-start; }
+
+/* The empty-lane sentence is now a LABEL over the marked slots, not a box in
+   the middle of nothing. The slots already say the lane is empty; this says
+   what that costs, which is the part the slots cannot. */
+.laneEmpty {
+  position: absolute; inset: auto 0 50%; z-index: 1; margin: 0;
+  transform: translateY(50%);
+  padding: 0 var(--sp-2); border: 0; text-align: center;
+  text-shadow: 0 1px 0 rgba(3, 6, 14, .9), 0 0 8px rgba(3, 6, 14, .9);
+}
+
+/* ---- The seam is a HORIZON ---------------------------------------------
+   It was already the one gold horizontal on the board (IA-19). It now reads as
+   the place where the two halves of the table meet: a bright rail, a bloom
+   that falls off into both territories, and a machined bevel under the plate.
+   The numbers printed on it are untouched. */
+.seam {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(227, 183, 83, .04), rgba(227, 183, 83, .16) 50%, rgba(227, 183, 83, .04)),
+    linear-gradient(90deg, transparent, rgba(227, 183, 83, .07) 18%, rgba(227, 183, 83, .07) 82%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(227, 183, 83, .30),
+    inset 0 -1px 0 rgba(227, 183, 83, .30),
+    0 -14px 30px -18px rgba(227, 183, 83, .55),
+    0 14px 30px -18px rgba(227, 183, 83, .55);
+}
+/* The centre line: a 1px rail that is brightest at the middle of the table and
+   fades out at both edges, so the horizon has a vanishing point. */
+.seam::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 0;
+  pointer-events: none; transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, rgba(227, 183, 83, .38) 28%, rgba(227, 183, 83, .38) 72%, transparent);
+}
+.seamCell { position: relative; z-index: 1; }
+.seamLane { text-shadow: 0 0 10px rgba(227, 183, 83, .35); }
+/* The direction arrow is the fastest read on the board — it is the answer to
+   "am I winning this lane". It gets a plate and a bloom in its own semantic
+   colour so it separates from the two power figures flanking it. */
+.seamArrow {
+  padding: 1px 7px; border: 1px solid currentColor;
+  background: rgba(3, 6, 14, .62);
+}
+.seamCell[data-dir="out"] .seamArrow { box-shadow: 0 0 9px -1px rgba(74, 215, 196, .55); }
+.seamCell[data-dir="in"]  .seamArrow { box-shadow: 0 0 9px -1px rgba(255, 107, 107, .55); }
+.seamCell[data-dir="none"] .seamArrow { border-color: var(--line-strong); box-shadow: none; }
+
+/* ---- The hand dock is the near rail ------------------------------------ */
+.mHand {
+  position: relative;
+  background-image: linear-gradient(180deg, rgba(227, 183, 83, .045), transparent 40%);
+  box-shadow: inset 0 1px 0 rgba(227, 183, 83, .22), 0 -18px 34px -26px rgba(227, 183, 83, .45);
+}
+
+/* ---- Piles and fan, in the HUD ------------------------------------------
+   Geometry only; 08-cardback.css owns how a back looks. The pile is sized to
+   the HUD row's 40px minimum so the two zone buttons and the hand count sit on
+   one baseline. */
+/* The fan hugs the pile cluster rather than floating in the middle of the HUD
+   row: a hand, a deck and a discard are the three places a card can be, and
+   they belong together on one side of the plinth. */
+.handFan { margin-left: auto; }
+.hudCounts { align-items: stretch; margin-left: var(--sp-4); }
+.hud-rival .hudCounts { margin-left: var(--sp-4); }
+.pileZone { --pile-w: 34px; --pile-h: 46px; }
+.pileFace {
+  position: absolute; inset: 0; border-radius: 3px; overflow: hidden;
+  display: grid; place-items: center;
+  border: 1px solid var(--div-edge);
+  background: linear-gradient(178deg, var(--surface-2), #0A1224);
+}
+.pileFace .cardArt {
+  --art-size: 26px;
+  width: 100%; height: var(--art-size); box-shadow: none;
+}
+.pileFace .cardArt::before { border-color: var(--div-edge); background: none; }
+/* An empty discard has no top card to show, so it shows the well instead —
+   the same hole the empty deck shows. One shape for "nothing here". */
+.pileZone[data-empty="true"] .pileFace { display: none; }
+
+/* ---- The set-trap back --------------------------------------------------
+   The face-down chip keeps its text (a screen reader must still find it) and
+   gains the back behind that text. 21-match-units already gives .faceDown a
+   gold edge; the hatch it used as a stand-in for a back is replaced here by
+   the real one. */
+.supportChip.faceDown {
+  position: relative; overflow: hidden;
+  background: var(--surface-1);
+}
+.supportChip.faceDown .setBack {
+  position: absolute; inset: 0; z-index: 0; border: 0; box-shadow: none;
+}
+.supportChip.faceDown .supportFamily,
+.supportChip.faceDown .supportName,
+.supportChip.faceDown .supportMeta {
+  position: relative; z-index: 1;
+  text-shadow: 0 1px 0 rgba(3, 6, 14, .95), 0 0 6px rgba(3, 6, 14, .95);
+}
+
+/* ---- Short viewports ----------------------------------------------------
+   20-match-board already shrinks --art-size at these two heights, which
+   shrinks the unit. The slot has to shrink with it or the ghost stops lining
+   up with the thing that fills it. Same breakpoints, deliberately. */
+/* ---- The crest ladder ---------------------------------------------------
+   20-match-board steps the board crest down twice when vertical space runs
+   out. The slot has to step with it or the ghost stops lining up with the tile
+   that fills it, so both numbers live here at one set of breakpoints and these
+   values replace 20-match-board's.
+
+   Every size below is one the atlas is ALREADY rasterised at somewhere else in
+   the product (A-31: 96 in the deck pool and the hand, 56/44/32 on the board),
+   so a lane that is now wide enough for a 96px crest costs the compositor
+   nothing new — it reuses the raster the hand strip is already holding. */
+@media (min-height: 1200px) {
+  .laneRow { --slot-h: 176px; }
+  .laneRow .battleUnit { --art-size: 96px; }
+}
+
+/* ---- The vertical budget ------------------------------------------------
+   The board is the game; the HUDs, the seam and the hand dock are the frame
+   around it. At 1366x768 — the most common laptop there is — the frame was
+   taking 410 of the board's 496 pixels: 249 of it in two status strips, 74 in
+   the seam, and a flat 252px hand dock that never changed size at any height.
+   The lane bays got 86px each and clipped the units inside them top and
+   bottom, so the power number of the thing attacking you was cut in half.
+
+   Measured, at 1366x768: rival HUD 141 -> 76, player HUD 108 -> 76, dock
+   214 -> 178. That is ~130px handed back to the two lane rows, which is the
+   difference between a unit that fits its bay and one that does not.
+
+   Nothing is removed to pay for it. The Cores, the twenty segments, the
+   resource pips, the counts and the difficulty line are all still on screen at
+   768 — they are simply on one row instead of two, at the sizes the rest of
+   the product already uses. Every crest size is one the atlas is already
+   rasterised at (A-31). */
+@media (max-height: 1000px) {
+  .laneRow { --slot-h: 124px; }
+  .laneRow .battleUnit { --art-size: 44px; }
+
+  .hud { gap: var(--sp-4); padding: var(--sp-2) var(--sp-4); }
+  /* The difficulty line was `flex: 1 0 100%`, which forces its own row on the
+     rival's plinth and buys 24px of height for one sentence of flavour. On a
+     short viewport it shares the row and ellipses instead.
+
+     `.coreBlock` has to give up its 240px floor at the same time, or it keeps
+     demanding more width than the row can give it and the 320px Core bar
+     simply overflows the block and prints underneath the difficulty text. The
+     bar's own width is retuned here rather than left to shrink, because both
+     Cores are the same quantity and must therefore be the same object: a bar
+     that flexed would render at a different length on each plinth, and a full
+     rival Core drawn shorter than yours reads as a depleted one. One rule, both
+     HUDs, one width. */
+  .coreBlock { flex: 1 1 auto; min-width: 0; gap: var(--sp-3); }
+  .coreBar { width: clamp(150px, 15vw, 224px); }
+  .hudBias { flex: 1 1 120px; min-width: 0; order: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pileZone { --pile-w: 26px; --pile-h: 34px; min-height: 0; padding: 3px var(--sp-2); }
+  .countBtn { min-height: 0; padding: 3px var(--sp-2); }
+  .handFan { height: 34px; padding-left: 7px; }
+  .handFan .cardBack { width: 24px; height: 33px; margin-left: -10px; }
+  .seamCell { min-height: 52px; }
+
+  .handStrip { height: 220px; }
+  .codexCard.handCard { --art-size: 56px; height: 212px; contain-intrinsic-size: auto 212px; }
+}
+@media (max-height: 820px) {
+  .laneRow { --slot-h: 96px; }
+  .laneRow .battleUnit { --art-size: 32px; gap: 2px; padding: 4px; }
+  /* Two lines of name in a 96px bay leaves nothing for the power cell and the
+     state chips, and a chip is the only place EXHAUSTED, GUARD or INFECTED is
+     written. The name is the field that survives being shortened, because the
+     crest above it and the accessible name both still carry the identity. */
+  .laneRow .unitName { -webkit-line-clamp: 1; }
+  .handStrip { height: 192px; }
+  .codexCard.handCard { --art-size: 44px; height: 184px; contain-intrinsic-size: auto 184px; }
+  /* One line of contextual reason, not two. The full sentence is still in the
+     lane zone and in the tile's accessible name; this is the glance copy. */
+  .handCard .cardNote { -webkit-line-clamp: 1; }
+}
+
+/* Below 900px 34-responsive.css turns the board into a single scrolling
+   column of 68px-tall lane bays. A 104px slot ghost does not belong in one, so
+   the marked slots leave and the empty-lane sentence goes back to being a box
+   in the flow — which is exactly what it is when there is no slot row for it
+   to label. Nothing that carries information is lost: the slots were the
+   second copy of a lane's capacity, and the lane's aria-label is the first. */
+@media (max-width: 900px) {
+  .laneSlots { display: none; }
+  .laneUnits { min-height: 0; }
+  .laneEmpty {
+    position: static; transform: none; margin: auto; text-shadow: none;
+    padding: var(--sp-2) var(--sp-3); border: 1px dashed var(--line-hi);
+  }
+  .mBoard::after { background-image: radial-gradient(128% 96% at 50% 50%, transparent 60%, rgba(2, 5, 12, .45) 100%); }
+  .handFan { display: none; }
+}
+
+/* ---- Reduced transparency / forced colours ------------------------------
+   Everything in this file is atmosphere. When the platform says the user does
+   not want it, all of it goes, and the board underneath is the one
+   20-match-board draws — complete, and never dependent on anything here. */
+@media (forced-colors: active) {
+  .mBoard::before, .mBoard::after, .seam::after { content: none; }
+  .mBoard, .hud, .seam, .mHand, .laneSide-rival, .laneSide-player {
+    background: Canvas; box-shadow: none;
+  }
+  .laneSlot { border: 1px dashed ButtonText; background: Canvas; }
+  .laneSide[data-legal="yes"] .laneSlot { border: 2px solid Highlight; }
+  .laneSide[data-legal="no"]  .laneSlot { border: 2px dotted ButtonText; }
+  .seamArrow { border: 1px solid ButtonText; background: Canvas; box-shadow: none; }
+  .coreSeg.lit { box-shadow: none; }
+  .pileFace { border: 1px solid ButtonText; background: Canvas; }
+}
