@@ -1,0 +1,13 @@
+{
+  "appId": "com.collectiveai.codex",
+  "appName": "The Collective Codex",
+  "webDir": "dist",
+  "backgroundColor": "#050A18",
+  "loggingBehavior": "debug",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never"
+  }
+}

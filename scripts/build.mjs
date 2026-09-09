@@ -1,5 +1,6 @@
 import { cp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { moduleGraph } from './module-graph.mjs';
+import { serviceWorker } from './service-worker.mjs';
 
 const out = 'dist';
 
@@ -94,7 +95,8 @@ async function checkCss() {
  * repository passes while the deployed site 404s a module and dies at boot. */
 const ENTRY = 'app.js';
 
-const staticFiles = ['index.html', 'styles.css', 'match.css', 'ui.css'];
+const staticFiles = ['index.html', 'styles.css', 'match.css', 'ui.css', 'manifest.webmanifest'];
+const iconFiles = ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'].map(f => `assets/icons/${f}`);
 const fontFiles = ['space-grotesk-latin-var.woff2', 'jetbrains-mono-latin-var.woff2'];
 
 if (CHECK) { await checkCss(); process.exit(0); }
@@ -106,9 +108,15 @@ await bundleCss();
 await rm(out, { recursive: true, force: true });
 await mkdir(`${out}/assets/fonts`, { recursive: true });
 await mkdir(`${out}/src`, { recursive: true });
+await mkdir(`${out}/assets/icons`, { recursive: true });
+for (const f of iconFiles) await cp(f, `${out}/${f}`);
 for (const f of staticFiles) await cp(f, `${out}/${f}`);
 for (const f of scriptFiles) await cp(f, `${out}/${f}`);
 for (const f of fontFiles) await cp(`assets/fonts/${f}`, `${out}/assets/fonts/${f}`);
 await cp('assets/card-art-atlas.avif', `${out}/assets/card-art-atlas.avif`);
 await cp('assets/card-art-provenance.json', `${out}/assets/card-art-provenance.json`);
 console.log(`Built static Collective Codex to dist/ (${staticFiles.length} static + ${scriptFiles.length} modules reachable from ${ENTRY} + ${fontFiles.length} fonts + assets)`);
+
+const offlineFiles = [...staticFiles, ...scriptFiles, ...iconFiles, ...fontFiles.map(f => `assets/fonts/${f}`), 'assets/card-art-atlas.avif', 'assets/card-art-provenance.json'];
+await writeFile(`${out}/sw.js`, await serviceWorker(offlineFiles));
+console.log(`Offline bundle: ${offlineFiles.length} resources, versioned by content.`);

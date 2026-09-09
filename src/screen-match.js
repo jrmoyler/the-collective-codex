@@ -101,11 +101,14 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
   const handStrip = h('div', { class: 'handStrip', role: 'group', 'aria-label': 'Your hand' });
   const handHint = h('p', { class: 'handHint', id: 'handHint' });
+  const inspectSelected = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'inspectSelected' }, hidden: true }, 'Read card');
+  const clearSelected = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'clearSelected' }, hidden: true }, 'Deselect');
+  const cancelTurn = h('button', { type: 'button', class: 'btn btnSmall', dataset: { action: 'cancelTurn' }, hidden: true }, 'Keep playing');
   const endBtn = h('button', { type: 'button', class: 'btn primary endTurnBtn', dataset: { action: 'endTurn' }, 'aria-describedby': 'endSummary' });
   const endSummary = h('span', { class: 'endSummary', id: 'endSummary' });
   const handDock = h('footer', { class: 'mHand' },
-    h('div', { class: 'handLeft' }, handStrip, handHint),
-    h('div', { class: 'handRight' }, endSummary, endBtn),
+    h('div', { class: 'handLeft' }, handStrip, h('div', { class: 'handContext' }, handHint, inspectSelected, clearSelected)),
+    h('div', { class: 'handRight' }, endSummary, h('div', { class: 'turnActions' }, cancelTurn, endBtn)),
   );
 
   const mulliganPanel = createMulligan();
@@ -535,15 +538,19 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         noteKind: anyLegal ? (here.ok ? 'ok' : 'info') : 'warn',
         label: `${cardLabel(c)} Hand slot ${i + 1}. ${anyLegal ? (here.ok ? `Playable in ${LANES[laneCursor]}.` : 'Not playable in the lane under the cursor: ' + here.reason) : 'Not playable: ' + here.reason}`,
       });
+      // This button selects a card for inspection; affordability only gates deployment.
+      // Keep the unavailable visual treatment without disabling this valid action.
+      setAttr(tile, 'aria-disabled', null);
       tile.tabIndex = (region === 'hand' && (handIndex === null ? i === 0 : i === handIndex)) ? 0 : -1;
     });
     const selected = handIndex === null ? null : hand[handIndex];
+    inspectSelected.hidden = clearSelected.hidden = !selected;
     setText(handHint, hand.length
       ? (selected
-        ? `${selected.name} selected — choose a lane (${['a', 's', 'd'].join(' / ')}) then Enter, or click a lane.`
+        ? `${selected.name} — tap a lane to play. Read card for the full ability.`
         // The number keys reach ten slots. Past that the sentence has to name the
         // way to the rest of the hand, or it is describing a hand the player has.
-        : `Select a card (${hand.length > 10 ? '← → in the hand, or 1–9' : '1–9'}), then a lane (a / s / d), then Enter.`)
+        : `Select a card, then tap a lane to play.${hand.length > 10 ? ' Swipe the hand to see more cards; use arrow keys on keyboard.' : ' Gold lane borders show valid targets.'}`)
       : `No cards in hand — you draw ${DRAW_PER_REFRESH} at refresh. Deck ${p.deck.length}.`);
   }
 
@@ -649,6 +656,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
 
   function disarm() {
     armed = false;
+    cancelTurn.hidden = true;
     armGuard = false;
     clearTimeout(armTimer);
     if (match) endBtn.disabled = match.phase === 'ended';
@@ -666,6 +674,8 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
    * (Escape), acts on something else (picking a hand card, targeting a lane), or
    * confirms. Those call sites already call disarm(). */
   function armEndTurn() {
+    if (!match || match.phase !== 'main') return;
+    cancelTurn.hidden = false;
     const { out, inc } = projection();
     armed = true;
     setText(endBtn, 'Confirm end turn ⏎');
@@ -678,7 +688,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     armGuard = true;
     endBtn.disabled = true;
     clearTimeout(armTimer);
-    armTimer = setTimeout(() => { armGuard = false; endBtn.disabled = match.phase === 'ended'; }, 400);
+    armTimer = setTimeout(() => { armGuard = false; endBtn.disabled = !match || match.phase !== 'main'; }, 400);
   }
 
   function doEndTurn() {
@@ -829,6 +839,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   /* ---------- inspector (IA-21) ---------- */
 
   function createInspector(onClose) {
+    let returnFocus = null;
     const body = h('div', { class: 'inspectBody' });
     const el = h('div', { class: 'inspectPanel', hidden: true, role: 'dialog', 'aria-label': 'Card inspector' },
       h('button', { type: 'button', class: 'btn iconBtn inspectClose', dataset: { action: 'closeInspect' }, 'aria-label': 'Close inspector' }, '✕'),
@@ -837,13 +848,14 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
     return {
       el,
       show(card) {
+        returnFocus = document.activeElement;
         const d = divisionById.get(card.divisionId);
         clear(body);
         body.append(
           h('span', { class: 'inspectDiv' }, `${d.icon} ${pad2(d.id)} ${d.name} · ${FAMILY_MARK[card.family] || '✦'} ${card.family}`),
           h('h2', { class: 'inspectName', tabindex: '-1' }, card.name),
           // Before the rules text, which is what misleads on these families.
-          hasNoEffect(card) ? h('p', { class: 'inspectBlank' }, h('strong', {}, NO_EFFECT_BADGE), ' — ', NO_EFFECT_NOTE) : null,
+          ...(hasNoEffect(card) ? [h('p', { class: 'inspectBlank' }, h('strong', {}, NO_EFFECT_BADGE), ' — ', NO_EFFECT_NOTE)] : []),
           h('p', { class: 'inspectRules' }, card.rulesText),
           h('dl', { class: 'inspectSpecs' },
             h('div', {}, h('dt', {}, 'Cost'), h('dd', {}, `${card.cost.command}C · ${card.cost.insight}I · ${card.cost.essence}E`)),
@@ -854,7 +866,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         el.hidden = false;
         requestAnimationFrame(() => body.querySelector('.inspectName')?.focus({ preventScroll: true }));
       },
-      hide() { el.hidden = true; onClose(); },
+      hide() { el.hidden = true; onClose(); if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true }); },
     };
   }
 
@@ -963,6 +975,9 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       if (handIndex !== null) { ev.preventDefault(); handIndex = null; paint(); return; }
       return;
     }
+    // Reading a card must never spend a card or commit a turn underneath it.
+    if (!inspectorPanel.el.hidden) return;
+    if (key === '?') { ev.preventDefault(); showKeyHelp(); return; }
     if (match.phase === 'mulligan') {
       if (/^[1-5]$/.test(key)) { ev.preventDefault(); toggleMulligan(Number(key) - 1); }
       else if (key === 'Enter') { ev.preventDefault(); commitMulligan(); }
@@ -1025,6 +1040,9 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
   /* ---------- delegated clicks ---------- */
 
   delegate(el, 'click', {
+    inspectSelected: () => { const c = match?.players.player.hand[handIndex]; if (c) { inspected = c; inspectorPanel.show(c); } },
+    clearSelected: () => { handIndex = null; paint(); },
+    cancelTurn: () => { disarm(); paint(); },
     pickHand: (b) => { const i = Number(b.dataset.index); if (armed) disarm(); handIndex = handIndex === i ? null : i; region = 'hand'; paint(); },
     pickLane: (b) => {
       const lane = Number(b.dataset.lane);
@@ -1156,6 +1174,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       setAttr(logToggle, 'aria-expanded', open ? 'true' : 'false');
     },
     setMatch(next) {
+      disarm(); inspectorPanel.hide();
       match = next; handIndex = null; laneCursor = 0; mulliganSel = new Set();
       lastEventSeq = 0; renderedLogSeq = 0; endShown = false; handAge = new Map(); lastRound = 0;
       clear(logBody);
@@ -1179,7 +1198,7 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
       return false;
     },
     hasMatch: () => Boolean(match),
-    clear() { match = null; store.set({ match: null }); motion.cancel(); clear(logBody); endShown = false; },
+    clear() { disarm(); inspectorPanel.hide(); match = null; store.set({ match: null }); motion.cancel(); clear(logBody); endShown = false; },
     onTurn: tickHandAge,
   };
 }

@@ -1,3 +1,4 @@
+import './src/install.js';
 /* app.js — shell, routing and screen orchestration.
  *
  * There is no global render(). Each screen is mounted exactly once and patches

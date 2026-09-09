@@ -60,6 +60,21 @@ export function preMatchDialog({ deckCards }) {
       const b = h('button', {
         type: 'button', class: 'tierBtn', role: 'radio', 'aria-checked': String(key === difficulty),
         onclick: () => { difficulty = key; settings.set('difficulty', key); sync(); },
+        onkeydown: (event) => {
+          const keys = TIERS.map(([tier]) => tier);
+          const index = keys.indexOf(key);
+          let next;
+          if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % keys.length;
+          else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = (index + keys.length - 1) % keys.length;
+          else if (event.key === 'Home') next = 0;
+          else if (event.key === 'End') next = keys.length - 1;
+          else return;
+          event.preventDefault();
+          difficulty = keys[next];
+          settings.set('difficulty', difficulty);
+          sync();
+          tierButtons.get(difficulty).focus();
+        },
       }, h('strong', {}, name), h('span', {}, blurb));
       tierButtons.set(key, b);
       tierList.append(b);
@@ -67,6 +82,7 @@ export function preMatchDialog({ deckCards }) {
     function sync() {
       for (const [key, b] of tierButtons) {
         b.setAttribute('aria-checked', String(key === difficulty));
+        b.tabIndex = key === difficulty ? 0 : -1;
         b.classList.toggle('active', key === difficulty);
       }
     }
@@ -129,4 +145,3 @@ export function preMatchDialog({ deckCards }) {
     };
   });
 }
-
