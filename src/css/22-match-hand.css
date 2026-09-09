@@ -140,3 +140,18 @@
 .endSeed p { font: var(--t-300)/1.6 var(--font-sans); color: var(--text-dim); margin: 0 0 var(--sp-3); }
 .endSeedRow { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .seedCode { font: 700 var(--t-500)/1 var(--font-mono); letter-spacing: .1em; color: var(--gold); }
+
+/* Contextual controls keep full card rules and turn cancellation available on touch. */
+.handContext { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.handContext .handHint { flex: 1 1 220px; }
+.handContext .btn { min-height: 44px; }
+.turnActions { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.turnActions .btn { min-height: 44px; }
+.handStrip { scroll-snap-type: x proximity; overscroll-behavior-x: contain; }
+.handCard { scroll-snap-align: start; }
+@media (max-width: 600px) {
+  .handContext { gap: 4px 8px; }
+  .handContext .handHint { flex-basis: 100%; font-size: 11px; }
+  .turnActions { gap: 6px; }
+  .inspectPanel { max-height: min(68dvh, 540px); overflow-y: auto; bottom: max(16px, env(safe-area-inset-bottom)); }
+}

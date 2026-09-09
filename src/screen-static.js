@@ -3,7 +3,7 @@
    No hero → metrics → three-feature-columns rhythm. */
 
 import { h, setText, clear, delegate, settings, pad2 } from './core.js';
-import { cards, divisions, divisionById, FAMILY_MARK } from './cards.js';
+import { cards, divisionById, makeTile, paintTile } from './cards.js';
 import { GLOSSARY, PRIMER_PANELS } from './glossary.js';
 import { termLink } from './terms.js';
 import { openDialog, announce } from './ui.js';
@@ -28,10 +28,14 @@ export function createHome({ deck, hasMatch, onStart }) {
     h('main', { class: 'doorMain' },
       h('header', { class: 'doorHead' },
         h('span', { class: 'eyeline' }, 'The Collective Codex'),
-        h('h1', { class: 'screenTitle', id: 'homeTitle', tabindex: '-1' }, 'Three lanes. One Core. 1,134 cards.'),
+        h('h1', { class: 'screenTitle', id: 'homeTitle', tabindex: '-1' }, 'Command the board.'),
+        h('p', { class: 'doorLead' }, 'Three lanes. One Core. Every card a decision.'),
       ),
-      h('div', { class: 'doorGrid' }, resumeCard, deckCard, codexCard, learnCard),
-      hero,
+      h('div', { class: 'doorLobby' },
+        h('nav', { class: 'doorGrid', 'aria-label': 'Game menu' }, resumeCard, deckCard, codexCard, learnCard),
+        hero,
+      ),
+      h('p', { class: 'doorFooter' }, 'Solo tactical card battles', h('span', { 'aria-hidden': 'true' }, ' / '), '21 divisions · 1,134 cards · Your doctrine'),
     ),
   );
 
@@ -41,26 +45,33 @@ export function createHome({ deck, hasMatch, onStart }) {
       h('span', { class: 'doorKicker' }, kicker),
       h('strong', { class: 'doorTitle' }, title),
       h('p', { class: 'doorBody' }, body),
-      meta ? h('span', { class: 'doorMeta' }, meta) : null,
+      h('span', { class: 'doorMeta' }, meta || '', h('span', { class: 'doorArrow', 'aria-hidden': 'true' }, '↗')),
     );
   }
 
   function paintHero() {
-    // One canonical card, not an "AI abstract" background.
-    const c = cards[Math.floor(cards.length / 2)];
+    // Present real canonical art at its supported crest size, with the same
+    // frame, costs and rarity construction the player encounters in the Codex.
+    const c = cards.find(card => card.family === 'Dragon' && card.rarity === 'Legendary') || cards[Math.floor(cards.length / 2)];
     const d = divisionById.get(c.divisionId);
     clear(hero);
-    hero.style.setProperty('--division', d.color);
-    hero.style.setProperty('--art-x', c.art.col);
-    hero.style.setProperty('--art-y', c.art.row);
+    hero.dataset.division = String(d.id);
+    const featured = makeTile({ tag: 'a', cls: 'codexCard homeFeaturedCard' });
+    paintTile(featured, c);
+    featured.setAttribute('href', `#/codex/${encodeURIComponent(c.id)}`);
+    featured.setAttribute('tabindex', '0');
     hero.append(
-      h('div', { class: 'heroArt cardArt', 'aria-hidden': 'true', dataset: { glyph: d.icon } }),
+      h('div', { class: 'heroExhibit' },
+        h('span', { class: 'eyeline' }, 'Inside the Codex'),
+        featured,
+        h('span', { class: 'heroEdition' }, `${c.rarity} / ${c.family}`),
+      ),
       h('div', { class: 'heroCopy' },
-        h('span', { class: 'eyeline' }, `${d.icon} ${pad2(d.id)} ${d.name} · ${FAMILY_MARK[c.family] || '✦'} ${c.family}`),
+        h('span', { class: 'eyeline' }, `${d.icon} ${pad2(d.id)} ${d.name}`),
         h('h2', {}, c.name),
         h('p', {}, c.rulesText),
-        h('p', { class: 'heroNote' }, 'Remember: ', termLink('power'), ' is attack ', h('b', {}, 'and'), ' durability.'),
-        h('a', { class: 'btn', href: `#/codex/${encodeURIComponent(c.id)}` }, 'Open this card'),
+        h('p', { class: 'heroNote' }, termLink('power'), ' is attack ', h('b', {}, 'and'), ' durability. Plan every exchange.'),
+        h('a', { class: 'btn', href: `#/codex/${encodeURIComponent(c.id)}` }, 'Inspect card'),
       ),
     );
   }
@@ -79,16 +90,16 @@ export function createHome({ deck, hasMatch, onStart }) {
       const ready = n === engine.DECK_SIZE;
       doorCard(resumeCard, live
         ? { kicker: 'In progress', title: 'Resume your match', body: 'Return to the board exactly where you left it.', meta: 'Enter the battlefield' }
-        : { kicker: 'Play', title: 'Start a local match', body: 'Deterministic three-lane rules against a rival that drafts from the full canon to mirror your own doctrine profile. Choose its difficulty before you begin.', meta: ready ? 'Your doctrine is ready' : `${n}/${engine.DECK_SIZE} cards — finish your doctrine first` });
+        : { kicker: 'Play', title: 'Start a local match', body: 'Choose a rival difficulty. Deploy your doctrine. Break through to the enemy Core.', meta: ready ? 'Your doctrine is ready' : `${n}/${engine.DECK_SIZE} cards — finish your doctrine first` });
       // Three distinct destinations, one control. `data-action` is only set for
       // the case the router cannot express, and is removed again for the other
       // two so a stale handler cannot fire on a plain link.
       const startsHere = !live && ready && typeof onStart === 'function';
       resumeCard.setAttribute('href', live ? '#/match' : '#/deck');
       if (startsHere) resumeCard.dataset.action = 'startMatch'; else delete resumeCard.dataset.action;
-      doorCard(deckCard, { kicker: 'Your doctrine', title: `${n} / 30 cards`, body: 'Cost curve, entity balance and division spread, checked as you build.', meta: 'Open the builder' });
-      doorCard(codexCard, { kicker: 'The canon', title: 'Browse 1,134 cards', body: '21 divisions, 28 families, 54 art sheets. Filter, sort, and link to any card.', meta: 'Open the Codex' });
-      doorCard(learnCard, { kicker: 'New here?', title: 'Learn the basics — 90 seconds', body: 'Core, lanes, the staggered resource curve, deployment fatigue, and the one rule every other card game does differently.', meta: 'Open the primer' });
+      doorCard(deckCard, { kicker: 'Your doctrine', title: 'Build your doctrine', body: `${n} / ${engine.DECK_SIZE} cards selected. Shape your strategy before entering the field.`, meta: 'Open the builder' });
+      doorCard(codexCard, { kicker: 'The canon', title: 'Browse 1,134 cards', body: 'Find your next decisive play across 21 divisions and 28 card families.', meta: 'Open the Codex' });
+      doorCard(learnCard, { kicker: 'New here?', title: 'Learn the basics — 90 seconds', body: 'A quick guide to deployment, resources, and simultaneous combat.', meta: 'Open the primer' });
       document.getElementById('homeTitle')?.focus({ preventScroll: true });
     },
     hide() { el.hidden = true; },

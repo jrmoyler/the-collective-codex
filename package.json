@@ -12,12 +12,25 @@
     "audit:art": "node --test tests/card-art-integrity.test.mjs",
     "rebuild:art": "node scripts/rebuild-atlas-from-sheets.mjs",
     "export:cards": "node scripts/export-card-masters.mjs",
-    "build:check": "node scripts/build.mjs --check"
+    "build:check": "node scripts/build.mjs --check",
+    "native:add:ios": "npm run build && cap add ios",
+    "native:add:android": "npm run build && cap add android",
+    "native:sync": "npm run build && cap sync",
+    "native:open:ios": "cap open ios",
+    "native:open:android": "cap open android",
+    "native:run:ios": "npm run build && cap sync ios && cap run ios",
+    "native:run:android": "npm run build && cap sync android && cap run android"
   },
   "devDependencies": {
-    "sharp": "^0.35.3"
+    "@capacitor/cli": "8.5.1",
+    "sharp": "^0.35.4"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.1",
+    "@capacitor/core": "8.5.1",
+    "@capacitor/ios": "8.5.1"
   }
 }
