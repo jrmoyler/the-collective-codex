@@ -538,6 +538,9 @@ export function createMatchScreen({ store, onExit, onRematch, onEditDoctrine, on
         noteKind: anyLegal ? (here.ok ? 'ok' : 'info') : 'warn',
         label: `${cardLabel(c)} Hand slot ${i + 1}. ${anyLegal ? (here.ok ? `Playable in ${LANES[laneCursor]}.` : 'Not playable in the lane under the cursor: ' + here.reason) : 'Not playable: ' + here.reason}`,
       });
+      // This button selects a card for inspection; affordability only gates deployment.
+      // Keep the unavailable visual treatment without disabling this valid action.
+      setAttr(tile, 'aria-disabled', null);
       tile.tabIndex = (region === 'hand' && (handIndex === null ? i === 0 : i === handIndex)) ? 0 : -1;
     });
     const selected = handIndex === null ? null : hand[handIndex];

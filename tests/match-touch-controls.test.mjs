@@ -48,3 +48,19 @@ test('turn confirmation has a touch cancel and cannot leak into a new match', ()
   assert.equal(button('endTurn').classList.contains('armed'), false);
   screen.clear(); screen.el.remove();
 });
+
+
+test('unaffordable cards remain semantically available for selection and inspection', () => {
+  const { screen, store, button, match } = setup();
+  match.players.player.resources = { command: 0, insight: 0, essence: 0 };
+  screen.setMatch(match);
+  const tile = [...screen.el.querySelector('.handStrip').children].find(node => node.classList.contains('isDisabled'));
+  assert.ok(tile, 'fixture has an unaffordable card');
+  assert.notEqual(tile.getAttribute('aria-disabled'), 'true');
+  tile.dispatch('click');
+  assert.equal(button('inspectSelected').hidden, false);
+  button('inspectSelected').dispatch('click');
+  assert.equal(screen.el.querySelector('.inspectPanel').hidden, false);
+  assert.equal(store.state.match, match, 'inspection does not spend resources or deploy the card');
+  screen.clear(); screen.el.remove();
+});
